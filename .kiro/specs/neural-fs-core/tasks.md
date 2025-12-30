@@ -266,92 +266,92 @@
 
 ## Phase 4: 文件感知 (File Awareness)
 
-- [ ] 12. 文件监控服务
-  - [ ] 12.1 实现文件监控器
+- [x] 12. 文件监控服务
+  - [x] 12.1 实现文件监控器
     - 更新 `src-tauri/src/watcher/mod.rs`
     - 实现 `FileWatcher` 增强版
     - 实现事件去重和节流
     - _Requirements: 8.1, 8.2_
 
-  - [ ] 12.2 实现目录过滤器
+  - [x] 12.2 实现目录过滤器
     - 创建 `src-tauri/src/watcher/filter.rs`
     - 实现 `DirectoryFilter`
     - 实现黑名单/白名单匹配
     - _Requirements: Directory Blacklist_
 
-  - [ ] 12.3 编写属性测试: 目录过滤有效性
+  - [x] 12.3 编写属性测试: 目录过滤有效性
     - **Property 33: Directory Filter Effectiveness**
     - **Property 34: Large Directory Protection**
     - **Validates: Directory Blacklist**
 
-  - [ ] 12.4 文件系统事件去重压力测试
+  - [x] 12.4 文件系统事件去重压力测试
     - 编写集成测试：模拟 1 秒内 1000 个文件变更事件
     - 验证 FileWatcher 正确合并为 Batch 事件
     - 验证 CPU 使用率不超过阈值
     - _Requirements: 8.6, Directory Blacklist_
 
-- [ ] 13. 文件系统对账
-  - [ ] 13.1 实现对账服务
+- [x] 13. 文件系统对账
+  - [x] 13.1 实现对账服务
     - 创建 `src-tauri/src/reconcile/mod.rs`
     - 实现 `ReconciliationService`
     - 实现启动时 Diff 算法
     - _Requirements: Reconciliation Strategy_
 
-  - [ ] 13.2 实现 FileID 追踪
+  - [x] 13.2 实现 FileID 追踪
     - 实现 Windows `GetFileInformationByHandle`
     - 实现 Unix inode 追踪
     - 实现重命名检测
     - _Requirements: Reconciliation Strategy_
 
-  - [ ] 13.3 编写属性测试: 重命名追踪
+  - [x] 13.3 编写属性测试: 重命名追踪
     - **Property 21: File ID Tracking Across Renames**
     - **Validates: Reconciliation Strategy**
 
-- [ ] 14. 内容解析器
-  - [ ] 14.1 实现文本内容提取
+- [x] 14. 内容解析器
+  - [x] 14.1 实现文本内容提取
     - 创建 `src-tauri/src/parser/mod.rs`
     - 实现 `ContentParser` trait
     - 实现 TXT, MD, JSON 解析
     - _Requirements: 22.1_
 
-  - [ ] 14.2 实现 PDF 解析
+  - [x] 14.2 实现 PDF 解析
     - 实现 PDF 文本提取
     - 实现页码定位
     - _Requirements: 22.1_
 
-  - [ ] 14.3 实现代码文件解析
+  - [x] 14.3 实现代码文件解析
     - 实现语法树分析
     - 实现函数/类提取
     - _Requirements: 22.4_
 
-- [ ] 15. 索引服务
-  - [ ] 15.1 实现韧性索引器
+- [x] 15. 索引服务
+  - [x] 15.1 实现韧性索引器
     - 更新 `src-tauri/src/indexer/mod.rs`
     - 实现 `ResilientBatchIndexer`
     - 实现 `IndexTask` 增强版
     - _Requirements: Indexer Resilience_
 
-  - [ ] 15.2 实现指数退避重试 (含文件句柄泄露检测)
+  - [x] 15.2 实现指数退避重试 (含文件句柄泄露检测)
     - 实现 `calculate_retry_delay()`
     - 实现文件锁定特殊处理
     - 确保 `File::open` 失败时显式 drop 文件句柄 (防止句柄泄露)
     - Rationale: Windows 上即使打开失败有时也会短暂持有句柄，导致连续重试失败
     - _Requirements: Indexer Resilience_
 
-  - [ ] 15.3 实现死信队列
+  - [x] 15.3 实现死信队列
     - 实现 `dead_letter_queue`
     - 实现手动重试
     - 实现队列大小限制
     - _Requirements: Indexer Resilience_
 
-  - [ ] 15.4 编写属性测试: 索引器韧性
+  - [x] 15.4 编写属性测试: 索引器韧性
     - **Property 39: Exponential Backoff Correctness**
     - **Property 40: Dead Letter Queue Bound**
     - **Property 41: File Lock Retry Behavior**
     - **Property 42: Task State Machine Validity**
     - **Validates: Indexer Resilience**
 
-- [ ] 16. Checkpoint - 文件感知验证
+- [x] 16. Checkpoint - 文件感知验证
   - 验证文件监控
   - 验证目录过滤
   - 验证对账服务
@@ -361,98 +361,98 @@
 
 ## Phase 5: AI 推理引擎 (AI Inference)
 
-- [ ] 17. 嵌入引擎
-  - [ ] 17.1 实现 ONNX 模型加载
+- [x] 17. 嵌入引擎
+  - [x] 17.1 实现 ONNX 模型加载
     - 更新 `src-tauri/src/embeddings/mod.rs`
     - 实现 `ModelManager`
     - 实现模型懒加载
     - _Requirements: 23.1_
 
-  - [ ] 17.2 实现 VRAM 管理
+  - [x] 17.2 实现 VRAM 管理
     - 实现 `VRAMManager`
     - 实现 LRU 模型缓存
     - 实现模型卸载
     - _Requirements: 4.1, 4.2_
 
-  - [ ] 17.3 实现文本嵌入
+  - [x] 17.3 实现文本嵌入
     - 实现 all-MiniLM-L6-v2 推理
     - 实现批量嵌入
     - _Requirements: 3.5_
 
-  - [ ] 17.4 实现图像嵌入
+  - [x] 17.4 实现图像嵌入
     - 实现 CLIP 模型推理
     - 实现图像预处理
     - _Requirements: 3.3_
 
-  - [ ] 17.5 编写属性测试: VRAM 使用限制
+  - [x] 17.5 编写属性测试: VRAM 使用限制
     - **Property 6: VRAM Usage Bound**
     - **Validates: Requirements 4.1**
 
-  - [ ] 17.6 模型加载状态机
+  - [x] 17.6 模型加载状态机
     - 实现 `ModelLoadingState` (Missing, Downloading, Loading, Ready, Failed)
     - 在 `EmbeddingEngine` 中处理 "模型未就绪" 时的请求
     - 实现降级处理策略 (返回空结果而非崩溃)
     - _Requirements: Installer Specification, 首次启动_
 
-- [ ] 18. 稀释注意力
-  - [ ] 18.1 实现长文档处理
+- [x] 18. 稀释注意力
+  - [x] 18.1 实现长文档处理
     - 创建 `src-tauri/src/embeddings/diluted.rs`
     - 实现 `DilutedAttentionProcessor`
     - 实现滑动窗口 + 全局上下文
     - _Requirements: 4.2_
 
-  - [ ] 18.2 编写属性测试: 内容片段覆盖
+  - [x] 18.2 编写属性测试: 内容片段覆盖
     - **Property 5: Chunk Coverage Invariant**
     - **Validates: Requirements 3.2**
 
-- [ ] 19. 意图解析器
-  - [ ] 19.1 实现意图分类
+- [x] 19. 意图解析器
+  - [x] 19.1 实现意图分类
     - 创建 `src-tauri/src/search/intent.rs`
     - 实现 `IntentParser`
     - 实现文件级/段落级意图识别
     - _Requirements: 2.1_
 
-  - [ ] 19.2 编写属性测试: 意图分类有效性
+  - [x] 19.2 编写属性测试: 意图分类有效性
     - **Property 3: Intent Classification Validity**
     - **Validates: Requirements 2.1**
 
-- [ ] 20. 混合推理引擎
-  - [ ] 20.1 实现本地推理引擎
+- [x] 20. 混合推理引擎
+  - [x] 20.1 实现本地推理引擎
     - 创建 `src-tauri/src/inference/local.rs`
     - 实现 `LocalInferenceEngine`
     - 实现上下文增强提示词生成
     - _Requirements: 11.2, 11.4_
 
-  - [ ] 20.2 实现云端桥接
+  - [x] 20.2 实现云端桥接
     - 创建 `src-tauri/src/inference/cloud.rs`
     - 实现 `CloudBridge`
     - 实现速率限制和成本追踪
     - _Requirements: 11.6, 11.7_
 
-  - [ ] 20.3 实现数据匿名化
+  - [x] 20.3 实现数据匿名化
     - 实现 `anonymize_prompt()`
     - 移除敏感路径和用户名
     - _Requirements: 13.2_
 
-  - [ ] 20.4 实现结果合并器
+  - [x] 20.4 实现结果合并器
     - 创建 `src-tauri/src/inference/merger.rs`
     - 实现 `ResultMerger`
     - 实现分数加权合并
     - _Requirements: 11.5_
 
-  - [ ] 20.5 实现并行推理调度
+  - [x] 20.5 实现并行推理调度
     - 创建 `src-tauri/src/inference/hybrid.rs`
     - 实现 `HybridInferenceEngine`
     - 实现本地+云端并行调度
     - _Requirements: 11.1_
 
-  - [ ] 20.6 编写属性测试: 并行推理与数据安全
+  - [x] 20.6 编写属性测试: 并行推理与数据安全
     - **Property 11: Parallel Inference Dispatch**
     - **Property 12: Cache Hit Consistency**
     - **Property 13: Data Anonymization**
     - **Validates: Requirements 11, 13**
 
-- [ ] 21. Checkpoint - AI 推理验证
+- [x] 21. Checkpoint - AI 推理验证
   - 验证嵌入生成
   - 验证 VRAM 限制
   - 验证意图解析
@@ -462,29 +462,29 @@
 
 ## Phase 6: 搜索与标签 (Search & Tags)
 
-- [ ] 22. 混合搜索引擎
-  - [ ] 22.1 实现混合搜索
+- [x] 22. 混合搜索引擎
+  - [x] 22.1 实现混合搜索
     - 创建 `src-tauri/src/search/hybrid.rs`
     - 实现 `HybridSearchEngine`
     - 实现向量搜索 + BM25 融合
     - _Requirements: Hybrid Search Logic_
 
-  - [ ] 22.2 实现查询类型分类
+  - [x] 22.2 实现查询类型分类
     - 实现 `classify_query()`
     - 识别精确关键词/自然语言/混合
     - _Requirements: Hybrid Search Logic_
 
-  - [ ] 22.3 实现搜索过滤
+  - [x] 22.3 实现搜索过滤
     - 实现 `SearchFilters`
     - 实现标签过滤、时间范围、文件类型
     - _Requirements: 2.2, 2.3_
 
-  - [ ] 22.4 编写属性测试: 搜索结果正确性
+  - [x] 22.4 编写属性测试: 搜索结果正确性
     - **Property 19: Search Filter Correctness**
     - **Property 22: Hybrid Search Score Normalization**
     - **Validates: Requirements 2.2, 2.3**
 
-  - [ ] 22.5 编写属性测试: 搜索延迟
+  - [x] 22.5 编写属性测试: 搜索延迟
     - **Property 7: Search Latency Bound (Fast Mode)**
     - **Validates: Requirements 4.8**
 

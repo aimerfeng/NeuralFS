@@ -79,6 +79,9 @@ directories = "5.0"
 # Image processing
 image = "0.24"
 
+# N-dimensional arrays for tensor operations
+ndarray = "0.15"
+
 # PDF parsing
 pdf-extract = "0.7"
 
@@ -94,6 +97,12 @@ governor = "0.6"
 
 # LRU cache
 lru = "0.12"
+
+# Glob pattern matching
+glob = "0.3"
+
+# Regular expressions
+regex = "1.10"
 
 # Windows-specific dependencies
 [target.'cfg(windows)'.dependencies]

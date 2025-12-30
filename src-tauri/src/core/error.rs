@@ -40,6 +40,12 @@ pub enum NeuralFSError {
 
     #[error("Internal error: {0}")]
     Internal(String),
+
+    #[error("Watcher error: {0}")]
+    WatcherError(String),
+
+    #[error("Configuration error: {0}")]
+    ConfigError(String),
 }
 
 /// Indexing-related errors
