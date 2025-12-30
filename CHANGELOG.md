@@ -2,6 +2,20 @@
 
 ## [0.1.0] - 2024-12-30
 
+### 架构设计决策
+
+#### Bounding Box 空间索引策略
+- **当前方案**: `content_chunks.bounding_box` 使用 JSON 文本存储 `[x, y, width, height]`
+- **查询策略**: 应用层过滤 (Rust 代码中进行区域匹配)
+- **原因**: SQLite 原生不支持空间索引，JSON 存储最简单且灵活
+- **未来扩展**: 
+  - 方案 A: 分离坐标列 + 复合索引
+  - 方案 B: SQLite R*Tree 扩展
+  - 方案 C: 向量数据库 payload 过滤
+- **详见**: `.kiro/specs/neural-fs-core/design.md` - Data Models 章节
+
+---
+
 ### Phase 1: 骨架搭建 (Project Skeleton) ✅
 
 #### 1.1 Rust 模块结构

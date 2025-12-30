@@ -1757,6 +1757,88 @@ CREATE TABLE session_file_access (
 
 ## Data Models
 
+### 空间索引设计说明 (Bounding Box)
+
+`content_chunks` 表中的 `bounding_box` 字段存储为 JSON 文本格式 `[x, y, width, height]`，坐标归一化到 0-1 范围。
+
+#### 当前设计决策
+
+**选择 JSON 文本存储的原因：**
+1. **简单性**: SQLite 原生不支持空间索引，JSON 存储最简单
+2. **灵活性**: 可以存储任意精度的浮点数
+3. **兼容性**: 与 Rust 的 `serde_json` 无缝集成
+
+**查询策略：**
+```rust
+// 应用层过滤 - 当前实现
+fn filter_by_bounding_box(chunks: Vec<ContentChunk>, region: BoundingBox) -> Vec<ContentChunk> {
+    chunks.into_iter()
+        .filter(|c| c.location.bounding_box.map_or(false, |bb| bb.intersects(&region)))
+        .collect()
+}
+```
+
+#### 未来扩展方案
+
+如果需要复杂的空间查询（如"查找图片左上角区域的所有文字"），可考虑以下方案：
+
+**方案 A: 分离坐标列 + 复合索引**
+```sql
+-- Migration: 002_spatial_columns.sql
+ALTER TABLE content_chunks ADD COLUMN bbox_x REAL;
+ALTER TABLE content_chunks ADD COLUMN bbox_y REAL;
+ALTER TABLE content_chunks ADD COLUMN bbox_w REAL;
+ALTER TABLE content_chunks ADD COLUMN bbox_h REAL;
+
+-- 复合索引支持范围查询
+CREATE INDEX idx_chunks_bbox ON content_chunks(bbox_x, bbox_y, bbox_w, bbox_h);
+
+-- 查询示例：查找左上角区域 (x < 0.5 AND y < 0.5)
+SELECT * FROM content_chunks 
+WHERE bbox_x IS NOT NULL 
+  AND bbox_x < 0.5 
+  AND bbox_y < 0.5;
+```
+
+**方案 B: SQLite R*Tree 扩展**
+```sql
+-- 需要编译时启用 SQLITE_ENABLE_RTREE
+CREATE VIRTUAL TABLE chunk_spatial USING rtree(
+    id,              -- 主键
+    min_x, max_x,    -- X 范围
+    min_y, max_y     -- Y 范围
+);
+
+-- 空间查询
+SELECT c.* FROM content_chunks c
+JOIN chunk_spatial s ON c.id = s.id
+WHERE s.min_x >= 0.0 AND s.max_x <= 0.5
+  AND s.min_y >= 0.0 AND s.max_y <= 0.5;
+```
+
+**方案 C: 向量数据库空间过滤**
+```rust
+// 在 Qdrant payload 中存储 bounding_box
+let point = VectorPoint::new(id, embedding)
+    .with_payload("bbox_x", bbox.x)
+    .with_payload("bbox_y", bbox.y)
+    .with_payload("bbox_w", bbox.width)
+    .with_payload("bbox_h", bbox.height);
+
+// 搜索时使用 payload 过滤
+let filter = Filter::must([
+    Condition::range("bbox_x", Range { lt: Some(0.5), ..Default::default() }),
+    Condition::range("bbox_y", Range { lt: Some(0.5), ..Default::default() }),
+]);
+```
+
+**推荐路径：**
+1. **短期 (当前)**: 保持 JSON 存储，应用层过滤
+2. **中期**: 如果空间查询成为瓶颈，迁移到方案 A (分离列)
+3. **长期**: 如果需要复杂空间查询，考虑方案 B (R*Tree) 或方案 C (向量数据库)
+
+---
+
 ### Qdrant 向量存储配置
 
 ```rust
