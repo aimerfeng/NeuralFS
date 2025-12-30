@@ -1,0 +1,49 @@
+# Rust build artifacts
+target/
+Cargo.lock
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Tauri
+src-tauri/target/
+
+# Node modules (if frontend exists)
+node_modules/
+dist/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+logs/
+
+# Dependencies (will be downloaded)
+src-tauri/deps/*.dll
+src-tauri/deps/*.so
+src-tauri/deps/*.dylib
+
+# ONNX models (large files, download separately)
+models/
+*.onnx
+
+# Database files
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*~
