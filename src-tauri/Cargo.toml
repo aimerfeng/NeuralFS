@@ -106,6 +106,10 @@ windows = { version = "0.52", features = [
     "Win32_Storage_FileSystem",
     "Win32_System_ProcessStatus",
     "Win32_Security",
+    "Win32_UI_Shell",
+    "Win32_UI_Shell_Common",
+    "Win32_System_Com",
+    "Win32_System_Ole",
 ] }
 
 [features]
@@ -133,3 +137,7 @@ opt-level = 3
 proptest = "1.4"
 # Arbitrary trait for generating test data
 proptest-derive = "0.4"
+# Temporary directories for testing
+tempfile = "3.10"
+# Random number generation for tests
+rand = "0.8"

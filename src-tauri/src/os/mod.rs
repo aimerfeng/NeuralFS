@@ -7,6 +7,7 @@
 //! - Multi-monitor support
 //! - Display change handling
 //! - Window handle lifecycle management
+//! - System thumbnail extraction
 
 #[cfg(windows)]
 pub mod windows;
@@ -19,6 +20,13 @@ pub mod stub;
 
 #[cfg(not(windows))]
 pub use stub::StubDesktopManager as WindowsDesktopManager;
+
+pub mod thumbnail;
+
+pub use thumbnail::{
+    CacheStats, CachedThumbnailExtractor, ImageFormat, ThumbnailCache, ThumbnailCacheConfig,
+    ThumbnailData, ThumbnailExtractor, ThumbnailExtractorTrait, ThumbnailSize,
+};
 
 #[cfg(test)]
 mod tests;

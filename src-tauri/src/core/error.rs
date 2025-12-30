@@ -21,7 +21,10 @@ pub enum NeuralFSError {
     Cloud(#[from] CloudError),
 
     #[error("Database error: {0}")]
-    Database(#[from] DatabaseError),
+    Database(#[from] sqlx::Error),
+
+    #[error("Database internal error: {0}")]
+    DatabaseInternal(#[from] DatabaseError),
 
     #[error("File system error: {0}")]
     FileSystem(#[from] FileSystemError),
@@ -127,6 +130,23 @@ pub enum DatabaseError {
     Corrupted { reason: String },
 }
 
+impl From<sqlx::Error> for DatabaseError {
+    fn from(err: sqlx::Error) -> Self {
+        match &err {
+            sqlx::Error::Database(db_err) => {
+                DatabaseError::QueryFailed { reason: db_err.to_string() }
+            }
+            sqlx::Error::PoolTimedOut => {
+                DatabaseError::ConnectionFailed { reason: "Pool timed out".to_string() }
+            }
+            sqlx::Error::PoolClosed => {
+                DatabaseError::ConnectionFailed { reason: "Pool closed".to_string() }
+            }
+            _ => DatabaseError::QueryFailed { reason: err.to_string() }
+        }
+    }
+}
+
 /// File system errors
 #[derive(Error, Debug)]
 pub enum FileSystemError {
@@ -175,6 +195,15 @@ pub enum OsError {
 
     #[error("Platform not supported: {platform}")]
     PlatformNotSupported { platform: String },
+
+    #[error("Thumbnail extraction failed: {reason}")]
+    ThumbnailExtractionFailed { reason: String },
+
+    #[error("Shell item creation failed for path: {path}")]
+    ShellItemCreationFailed { path: String },
+
+    #[error("COM initialization failed: {reason}")]
+    ComInitFailed { reason: String },
 }
 
 /// Configuration errors
@@ -226,7 +255,8 @@ impl ErrorRecovery for NeuralFSError {
             NeuralFSError::Index(e) => e.is_retryable(),
             NeuralFSError::Search(e) => e.is_retryable(),
             NeuralFSError::Cloud(e) => e.is_retryable(),
-            NeuralFSError::Database(e) => e.is_retryable(),
+            NeuralFSError::Database(_) => true, // sqlx errors are generally retryable
+            NeuralFSError::DatabaseInternal(e) => e.is_retryable(),
             NeuralFSError::FileSystem(e) => e.is_retryable(),
             NeuralFSError::Os(e) => e.is_retryable(),
             NeuralFSError::Config(_) => false,
@@ -240,7 +270,8 @@ impl ErrorRecovery for NeuralFSError {
             NeuralFSError::Index(e) => e.retry_delay_ms(),
             NeuralFSError::Search(e) => e.retry_delay_ms(),
             NeuralFSError::Cloud(e) => e.retry_delay_ms(),
-            NeuralFSError::Database(e) => e.retry_delay_ms(),
+            NeuralFSError::Database(_) => Some(1000), // Default 1 second for sqlx errors
+            NeuralFSError::DatabaseInternal(e) => e.retry_delay_ms(),
             NeuralFSError::FileSystem(e) => e.retry_delay_ms(),
             NeuralFSError::Os(e) => e.retry_delay_ms(),
             NeuralFSError::Io(_) => Some(1000),
@@ -253,7 +284,8 @@ impl ErrorRecovery for NeuralFSError {
             NeuralFSError::Index(e) => e.recovery_action(),
             NeuralFSError::Search(e) => e.recovery_action(),
             NeuralFSError::Cloud(e) => e.recovery_action(),
-            NeuralFSError::Database(e) => e.recovery_action(),
+            NeuralFSError::Database(_) => RecoveryAction::Retry,
+            NeuralFSError::DatabaseInternal(e) => e.recovery_action(),
             NeuralFSError::FileSystem(e) => e.recovery_action(),
             NeuralFSError::Os(e) => e.recovery_action(),
             NeuralFSError::Config(_) => RecoveryAction::NotifyUser,
@@ -334,8 +366,14 @@ impl ErrorRecovery for CloudError {
         )
     }
 
+    /// Get suggested retry delay in milliseconds.
+    /// 
+    /// Note: For `RateLimitExceeded`, the actual implementation in `CloudBridge`
+    /// should prefer reading the `Retry-After` header from the API response
+    /// to get a dynamic wait time. The 60000ms here is a fallback default.
     fn retry_delay_ms(&self) -> Option<u64> {
         match self {
+            // Default 60 seconds, but CloudBridge should override with Retry-After header
             CloudError::RateLimitExceeded => Some(60000), // Wait 1 minute
             CloudError::Timeout { .. } => Some(1000),
             CloudError::RequestFailed { .. } => Some(2000),
@@ -409,6 +447,9 @@ impl ErrorRecovery for OsError {
             OsError::DesktopTakeoverFailed { .. }
                 | OsError::SetParentFailed { .. }
                 | OsError::DisplayChangeFailed { .. }
+                | OsError::ThumbnailExtractionFailed { .. }
+                | OsError::ShellItemCreationFailed { .. }
+                | OsError::ComInitFailed { .. }
         )
     }
 
@@ -417,6 +458,9 @@ impl ErrorRecovery for OsError {
             OsError::DesktopTakeoverFailed { .. } => Some(1000),
             OsError::SetParentFailed { .. } => Some(500),
             OsError::DisplayChangeFailed { .. } => Some(500),
+            OsError::ThumbnailExtractionFailed { .. } => Some(100),
+            OsError::ShellItemCreationFailed { .. } => Some(100),
+            OsError::ComInitFailed { .. } => Some(500),
             _ => None,
         }
     }
@@ -427,6 +471,9 @@ impl ErrorRecovery for OsError {
             OsError::ProgmanNotFound | OsError::WorkerWNotFound => RecoveryAction::NotifyUser,
             OsError::KeyboardHookFailed { .. } => RecoveryAction::Skip,
             OsError::InvalidWindowHandle { .. } => RecoveryAction::Retry,
+            OsError::ThumbnailExtractionFailed { .. } => RecoveryAction::Fallback,
+            OsError::ShellItemCreationFailed { .. } => RecoveryAction::Skip,
+            OsError::ComInitFailed { .. } => RecoveryAction::Retry,
             _ => RecoveryAction::Retry,
         }
     }

@@ -34,8 +34,19 @@
   - [x] 1.5 运行时依赖与构建脚本配置
     - 编写 `src-tauri/build.rs`：自动复制 deps/ 目录下的 DLL 到 target
     - 配置 `tauri.conf.json` 的 `externalBin`：注册 watchdog 为外部二进制
+    - **重要**: Tauri Sidecar 要求严格的命名规则，需确保构建步骤：
+      1. 编译 watchdog 二进制
+      2. 重命名为平台特定格式 (如 `watchdog-x86_64-pc-windows-msvc.exe`)
+      3. 移动到 `src-tauri/binaries/` 目录
+    - 配置 ONNX Runtime DLL 路径搜索顺序：
+      ```rust
+      let onnx_paths = [
+          "deps/onnxruntime",           // 项目本地
+          "C:/Program Files/onnxruntime", // 系统安装
+          // ... 其他路径
+      ];
+      ```
     - 实现 `RuntimeDependencies::check_cuda()` 桩代码 (无显卡 CI 环境兼容)
-    - 配置 ONNX Runtime DLL 路径
     - _Requirements: Installer Specification, DLL Side-loading_
 
 - [x] 2. 核心数据结构定义
@@ -64,6 +75,18 @@
     - **Property 17: Vector Database Serialization Round-Trip**
     - **Property 18: FileRecord Serialization Round-Trip**
     - **Validates: Requirements 21, 22**
+
+- [x] 2.6 创建 Sidecar 构建脚本
+  - 创建 `scripts/build-sidecar.ps1` (Windows) 或 `scripts/build-sidecar.sh` (Unix)
+  - 实现 watchdog 编译和重命名逻辑：
+    ```powershell
+    # Windows 示例
+    cargo build --release --bin watchdog
+    $target = "x86_64-pc-windows-msvc"
+    Copy-Item "target/release/watchdog.exe" "src-tauri/binaries/watchdog-$target.exe"
+    ```
+  - 集成到 `tauri build` 前置步骤 (可通过 npm scripts 或 Makefile)
+  - _Requirements: Process Supervisor, Installer Specification_
 
 - [x] 3. Checkpoint - 骨架验证
   - 确保所有数据结构编译通过
@@ -139,19 +162,19 @@
     - 确保 SetParent 始终使用最新 HWND
     - _Requirements: OS Integration Layer_
 
-- [ ] 6. 系统缩略图提取
-  - [ ] 6.1 实现 Windows 缩略图提取
+- [x] 6. 系统缩略图提取
+  - [x] 6.1 实现 Windows 缩略图提取
     - 创建 `src-tauri/src/os/thumbnail.rs`
     - 实现 `ThumbnailExtractor`
     - 使用 IShellItemImageFactory
     - _Requirements: OS Integration Layer_
 
-  - [ ] 6.2 实现缩略图缓存
+  - [x] 6.2 实现缩略图缓存
     - 实现 LRU 缓存
     - 实现磁盘持久化
     - _Requirements: 7.1_
 
-- [ ] 7. Checkpoint - 系统集成验证
+- [x] 7. Checkpoint - 系统集成验证
   - 验证桌面接管功能
   - 验证 Watchdog 进程
   - 测试多显示器场景
@@ -160,35 +183,39 @@
 
 ## Phase 3: 数据底层 (Data Layer)
 
-- [ ] 8. SQLite 数据库
-  - [ ] 8.1 实现数据库连接池
+- [x] 8. SQLite 数据库
+  - [x] 8.1 实现数据库连接池
     - 创建 `src-tauri/src/db/mod.rs`
     - 实现 `DatabaseConfig`
     - 实现 `create_database_pool()` with WAL 模式
+    - 根据 Cargo.toml 的 `wal` feature 动态配置 journal_mode:
+      ```rust
+      .journal_mode(if cfg!(feature = "wal") { SqliteJournalMode::Wal } else { SqliteJournalMode::Delete })
+      ```
     - _Requirements: SQLite High Concurrency_
 
-  - [ ] 8.2 创建数据库 Schema
+  - [x] 8.2 创建数据库 Schema
     - 创建 `src-tauri/migrations/` 目录
     - 创建 `001_initial_schema.sql`
     - 实现所有表结构 (files, content_chunks, tags, file_tags, file_relations, etc.)
     - _Requirements: Data Models_
 
-  - [ ] 8.3 实现迁移管理器
+  - [x] 8.3 实现迁移管理器
     - 创建 `src-tauri/src/db/migration.rs`
     - 实现 `MigrationManager`
     - 实现自动迁移和回滚
     - _Requirements: Schema Migration_
 
-  - [ ] 8.4 编写属性测试: 迁移原子性
+  - [x] 8.4 编写属性测试: 迁移原子性
     - **Property 32: Migration Atomicity**
     - **Validates: Schema Migration**
 
-  - [ ] 8.5 编写属性测试: WAL 并发性
+  - [x] 8.5 编写属性测试: WAL 并发性
     - **Property 35: WAL Mode Concurrency**
     - **Validates: SQLite High Concurrency**
 
-- [ ] 9. 向量数据库 (Qdrant)
-  - [ ] 9.1 实现 Qdrant 嵌入式初始化 (含锁文件处理)
+- [x] 9. 向量数据库 (Qdrant)
+  - [x] 9.1 实现 Qdrant 嵌入式初始化 (含锁文件处理)
     - 创建 `src-tauri/src/vector/mod.rs`
     - 实现 `VectorStore` 结构体
     - 配置 HNSW 索引
@@ -196,41 +223,41 @@
     - 配置 Qdrant 日志输出到应用日志系统 (默认 stdout 会被 Tauri 吞掉)
     - _Requirements: 21.1, 21.2_
 
-  - [ ] 9.2 实现向量 CRUD 操作
+  - [x] 9.2 实现向量 CRUD 操作
     - 实现 `upsert()`, `search()`, `delete()`
     - 实现批量操作
     - 实现过滤查询
     - _Requirements: 21.3, 21.4_
 
-  - [ ] 9.3 编写属性测试: 向量搜索正确性
+  - [x] 9.3 编写属性测试: 向量搜索正确性
     - **Property 4: Search Result Ordering**
     - **Validates: Requirements 2.2, 2.3**
 
-- [ ] 10. 全文检索 (Tantivy)
-  - [ ] 10.1 实现多语言分词器
+- [x] 10. 全文检索 (Tantivy)
+  - [x] 10.1 实现多语言分词器
     - 创建 `src-tauri/src/search/tokenizer.rs`
     - 实现 `JiebaTokenizer` (中文)
     - 实现 `LinderaTokenizer` (日文)
     - 实现 `MultilingualTokenizer`
     - _Requirements: Tokenizer Strategy, 19.2_
 
-  - [ ] 10.2 实现 Tantivy 索引
+  - [x] 10.2 实现 Tantivy 索引
     - 创建 `src-tauri/src/search/text_index.rs`
     - 实现 `TextIndex` 结构体
     - 注册多语言分词器
     - _Requirements: Hybrid Search Logic_
 
-  - [ ] 10.3 编写属性测试: 中文分词质量
+  - [x] 10.3 编写属性测试: 中文分词质量
     - **Property 31: Chinese Tokenization Quality**
     - **Validates: Tokenizer Strategy, Requirements 19**
 
-  - [ ] 10.4 索引版本控制
+  - [x] 10.4 索引版本控制
     - 在 `TextIndex` 中实现 Schema 版本检查
     - 检测 Tantivy Schema 变更 (字段增删)
     - 实现不兼容变更时的重建索引逻辑
     - _Requirements: Schema Migration (Tantivy)_
 
-- [ ] 11. Checkpoint - 数据层验证
+- [x] 11. Checkpoint - 数据层验证
   - 验证 SQLite WAL 模式
   - 验证数据库迁移
   - 验证向量搜索

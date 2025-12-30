@@ -16,6 +16,49 @@
 | 异步运行时 | Tokio | 1.35+ | 高性能异步I/O |
 | 序列化 | serde + bincode | - | 高效二进制序列化 |
 
+### 构建配置要点
+
+#### Tauri Sidecar (Watchdog) 二进制路径
+
+Tauri 的 Sidecar 机制要求严格的命名规则。`tauri.conf.json` 中配置的 `externalBin: ["binaries/watchdog"]` 不会自动从 `target/release/` 查找，而是期望在 `src-tauri/binaries/` 目录下存在符合平台命名规则的文件：
+
+| 平台 | 文件名 |
+|------|--------|
+| Windows x64 | `watchdog-x86_64-pc-windows-msvc.exe` |
+| macOS x64 | `watchdog-x86_64-apple-darwin` |
+| macOS ARM | `watchdog-aarch64-apple-darwin` |
+| Linux x64 | `watchdog-x86_64-unknown-linux-gnu` |
+
+**构建流程**：在 `tauri build` 之前，需要先编译 watchdog 并移动到正确位置。建议通过构建脚本或 Makefile 自动化此流程。
+
+#### ONNX Runtime DLL 路径配置
+
+`build.rs` 中的 ONNX Runtime 路径搜索顺序：
+
+```rust
+let onnx_paths = [
+    "deps/onnxruntime",              // 项目本地 (推荐用于分发)
+    "C:/Program Files/onnxruntime",  // Windows 系统安装
+    "/usr/local/lib",                // Unix 系统安装
+    std::env::var("ONNXRUNTIME_DIR").ok(), // 环境变量
+];
+```
+
+**注意**：确保 `deps/onnxruntime/` 目录包含正确版本的 DLL/dylib/so 文件，并在 CI/CD 中正确配置。
+
+#### SQLite WAL 模式
+
+`Cargo.toml` 中定义的 `wal = []` feature 需要在数据库初始化时读取：
+
+```rust
+// 在 create_database_pool() 中
+.journal_mode(if cfg!(feature = "wal") { 
+    SqliteJournalMode::Wal 
+} else { 
+    SqliteJournalMode::Delete 
+})
+```
+
 ## Architecture
 
 ### 系统架构图
@@ -1932,12 +1975,16 @@ impl ErrorRecovery for CloudError {
         )
     }
     
-    fn retry_delay(&self) -> Option<Duration> {
+    /// 返回重试延迟（毫秒）
+    /// 注意：对于 RateLimitExceeded，实际实现应优先从 API Response Header 
+    /// 的 Retry-After 字段动态获取等待时间，此处 60000ms 仅为默认回退值
+    fn retry_delay_ms(&self) -> Option<u64> {
         match self {
-            CloudError::RateLimitExceeded => Some(Duration::from_secs(60)),
-            CloudError::Network(_) => Some(Duration::from_secs(5)),
+            // 默认 60 秒，但 CloudBridge 实现时应从 Retry-After header 动态覆盖
+            CloudError::RateLimitExceeded => Some(60000),
+            CloudError::Network(_) => Some(5000),
             CloudError::ApiError { status, .. } if *status >= 500 => {
-                Some(Duration::from_secs(10))
+                Some(10000)
             }
             _ => None,
         }
@@ -1950,6 +1997,21 @@ impl ErrorRecovery for CloudError {
             CloudError::InvalidApiKey => FallbackStrategy::LocalOnly,
             _ => FallbackStrategy::UseCache,
         }
+    }
+}
+
+/// CloudBridge 中的动态 Retry-After 处理
+impl CloudBridge {
+    /// 从 API 响应中提取 Retry-After 值
+    fn extract_retry_after(response: &reqwest::Response) -> Option<u64> {
+        response
+            .headers()
+            .get("Retry-After")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| {
+                // Retry-After 可以是秒数或 HTTP-date
+                s.parse::<u64>().ok().map(|secs| secs * 1000)
+            })
     }
 }
 ```

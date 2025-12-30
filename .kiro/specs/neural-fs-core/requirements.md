@@ -441,3 +441,17 @@ NeuralFS 是一个本地 AI 驱动的沉浸式文件系统外壳，旨在将传�
 5. THE NeuralFS_Shell SHALL clearly indicate current license tier and feature availability
 6. THE License_Manager SHALL support license transfer between devices
 7. THE NeuralFS_Shell SHALL provide trial period for premium features with clear expiration notice
+
+### Requirement 31: 构建与部署配置
+
+**User Story:** As a developer, I want clear build configuration requirements, so that the application can be reliably built and deployed across different environments.
+
+#### Acceptance Criteria
+
+1. THE Build_System SHALL compile the watchdog sidecar binary and place it in `src-tauri/binaries/` with platform-specific naming (e.g., `watchdog-x86_64-pc-windows-msvc.exe`)
+2. THE Build_System SHALL configure ONNX Runtime DLL paths with fallback search order (project local → system install → environment variable)
+3. WHEN the `wal` feature is enabled in Cargo.toml, THE Database_Pool SHALL configure SQLite with WAL journal mode
+4. THE Build_System SHALL support CI/CD environments without GPU by providing CUDA check stubs
+5. WHEN cloud API rate limits are exceeded, THE Cloud_Bridge SHALL read the `Retry-After` header from API responses to determine dynamic wait times
+6. THE Build_System SHALL validate all sidecar binaries exist before `tauri build` completes
+7. THE Build_System SHALL document all external dependencies (ONNX Runtime, CUDA) and their installation paths
