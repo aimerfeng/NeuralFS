@@ -46,6 +46,9 @@ lindera = { version = "0.27", optional = true }
 # ONNX Runtime for local inference
 ort = { version = "1.16", features = ["load-dynamic"] }
 
+# Tokenizers for proper vocabulary-based tokenization
+tokenizers = "0.15"
+
 # File watching
 notify = "6.1"
 

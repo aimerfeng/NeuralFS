@@ -1,20 +1,25 @@
 //! Text Embedder using all-MiniLM-L6-v2 model
 //!
-//! Implements text embedding generation using ONNX Runtime.
-//! Supports batch embedding for efficiency.
+//! Implements text embedding generation using ONNX Runtime with proper tokenization.
+//! Uses the tokenizers crate to load the model's vocabulary for correct token IDs.
 
+use std::path::Path;
 use std::sync::Arc;
-use ndarray::{Array1, Array2, Axis};
+use ndarray::Array2;
 use ort::Value;
+use tokenizers::Tokenizer;
 
 use super::config::TextEmbeddingConfig;
 use super::error::{EmbeddingError, EmbeddingResult};
 use super::model_manager::ModelHandle;
 
-/// Text embedder using transformer models
+/// Text embedder using transformer models with proper tokenization
 pub struct TextEmbedder {
     /// Model handle
     model_handle: Arc<ModelHandle>,
+    
+    /// Tokenizer loaded from model's tokenizer.json
+    tokenizer: Tokenizer,
     
     /// Configuration
     config: TextEmbeddingConfig,
@@ -22,9 +27,42 @@ pub struct TextEmbedder {
 
 impl TextEmbedder {
     /// Create a new text embedder with the given model handle
-    pub fn new(model_handle: Arc<ModelHandle>, config: TextEmbeddingConfig) -> EmbeddingResult<Self> {
+    /// 
+    /// # Arguments
+    /// * `model_handle` - The ONNX model handle
+    /// * `tokenizer_path` - Path to the tokenizer.json file
+    /// * `config` - Embedding configuration
+    pub fn new(
+        model_handle: Arc<ModelHandle>,
+        tokenizer_path: &Path,
+        config: TextEmbeddingConfig,
+    ) -> EmbeddingResult<Self> {
+        let tokenizer = Tokenizer::from_file(tokenizer_path)
+            .map_err(|e| EmbeddingError::ModelLoadFailed {
+                reason: format!("Failed to load tokenizer from {:?}: {}", tokenizer_path, e),
+            })?;
+        
         Ok(Self {
             model_handle,
+            tokenizer,
+            config,
+        })
+    }
+    
+    /// Create a new text embedder from tokenizer JSON string
+    pub fn from_tokenizer_json(
+        model_handle: Arc<ModelHandle>,
+        tokenizer_json: &str,
+        config: TextEmbeddingConfig,
+    ) -> EmbeddingResult<Self> {
+        let tokenizer = Tokenizer::from_bytes(tokenizer_json.as_bytes())
+            .map_err(|e| EmbeddingError::ModelLoadFailed {
+                reason: format!("Failed to parse tokenizer JSON: {}", e),
+            })?;
+        
+        Ok(Self {
+            model_handle,
+            tokenizer,
             config,
         })
     }
@@ -41,7 +79,7 @@ impl TextEmbedder {
             return Ok(vec![]);
         }
         
-        // Tokenize all texts
+        // Tokenize all texts using the proper tokenizer
         let tokenized = self.tokenize_batch(texts)?;
         
         // Run inference
@@ -50,41 +88,57 @@ impl TextEmbedder {
         Ok(embeddings)
     }
     
-    /// Simple tokenization (word-piece style)
-    /// Note: In production, this should use a proper tokenizer like tokenizers-rs
+    /// Tokenize texts using the model's vocabulary
     fn tokenize_batch(&self, texts: &[&str]) -> EmbeddingResult<TokenizedBatch> {
         let batch_size = texts.len();
         let max_len = self.config.max_seq_length;
         
-        // Initialize arrays
-        let mut input_ids = vec![vec![0i64; max_len]; batch_size];
-        let mut attention_mask = vec![vec![0i64; max_len]; batch_size];
-        let mut token_type_ids = vec![vec![0i64; max_len]; batch_size];
+        // Configure tokenizer for batch encoding
+        let mut tokenizer = self.tokenizer.clone();
+        tokenizer.with_truncation(Some(tokenizers::TruncationParams {
+            max_length: max_len,
+            strategy: tokenizers::TruncationStrategy::LongestFirst,
+            ..Default::default()
+        })).map_err(|e| EmbeddingError::TokenizationFailed {
+            reason: format!("Failed to set truncation: {}", e),
+        })?;
         
-        for (i, text) in texts.iter().enumerate() {
-            // Simple tokenization: split by whitespace and assign IDs
-            // In production, use proper BPE/WordPiece tokenizer
-            let tokens: Vec<&str> = text.split_whitespace().collect();
+        tokenizer.with_padding(Some(tokenizers::PaddingParams {
+            strategy: tokenizers::PaddingStrategy::Fixed(max_len),
+            pad_id: 0,
+            pad_token: "[PAD]".to_string(),
+            ..Default::default()
+        }));
+        
+        // Encode all texts
+        let encodings = tokenizer.encode_batch(texts.to_vec(), true)
+            .map_err(|e| EmbeddingError::TokenizationFailed {
+                reason: format!("Batch encoding failed: {}", e),
+            })?;
+        
+        // Extract token IDs and attention masks
+        let mut input_ids = Vec::with_capacity(batch_size);
+        let mut attention_mask = Vec::with_capacity(batch_size);
+        let mut token_type_ids = Vec::with_capacity(batch_size);
+        
+        for encoding in encodings {
+            let ids: Vec<i64> = encoding.get_ids().iter().map(|&id| id as i64).collect();
+            let mask: Vec<i64> = encoding.get_attention_mask().iter().map(|&m| m as i64).collect();
+            let type_ids: Vec<i64> = encoding.get_type_ids().iter().map(|&t| t as i64).collect();
             
-            // [CLS] token
-            input_ids[i][0] = 101; // CLS token ID
-            attention_mask[i][0] = 1;
+            // Ensure correct length (pad or truncate if needed)
+            let mut padded_ids = vec![0i64; max_len];
+            let mut padded_mask = vec![0i64; max_len];
+            let mut padded_type_ids = vec![0i64; max_len];
             
-            // Add tokens (simplified - just use hash as token ID)
-            let token_count = tokens.len().min(max_len - 2);
-            for (j, token) in tokens.iter().take(token_count).enumerate() {
-                // Simple hash-based token ID (placeholder for real tokenizer)
-                let token_id = self.simple_token_id(token);
-                input_ids[i][j + 1] = token_id;
-                attention_mask[i][j + 1] = 1;
-            }
+            let copy_len = ids.len().min(max_len);
+            padded_ids[..copy_len].copy_from_slice(&ids[..copy_len]);
+            padded_mask[..copy_len].copy_from_slice(&mask[..copy_len]);
+            padded_type_ids[..copy_len].copy_from_slice(&type_ids[..copy_len]);
             
-            // [SEP] token
-            let sep_pos = token_count + 1;
-            if sep_pos < max_len {
-                input_ids[i][sep_pos] = 102; // SEP token ID
-                attention_mask[i][sep_pos] = 1;
-            }
+            input_ids.push(padded_ids);
+            attention_mask.push(padded_mask);
+            token_type_ids.push(padded_type_ids);
         }
         
         Ok(TokenizedBatch {
@@ -93,18 +147,7 @@ impl TextEmbedder {
             token_type_ids,
         })
     }
-    
-    /// Simple token ID generation (placeholder for real tokenizer)
-    fn simple_token_id(&self, token: &str) -> i64 {
-        // Use a simple hash to generate token IDs
-        // In production, use proper vocabulary lookup
-        let hash: u64 = token.bytes().fold(0u64, |acc, b| {
-            acc.wrapping_mul(31).wrapping_add(b as u64)
-        });
-        // Map to vocabulary range (assume 30000 vocab size)
-        (hash % 30000) as i64 + 1000
-    }
-    
+
     /// Run inference on tokenized input
     async fn run_inference(&self, batch: TokenizedBatch) -> EmbeddingResult<Vec<Vec<f32>>> {
         let session = self.model_handle.session.clone();
@@ -193,8 +236,6 @@ impl TextEmbedder {
         })?;
         
         // Extract embeddings from output
-        // The output is typically [batch_size, seq_len, hidden_size]
-        // We need to pool to get [batch_size, hidden_size]
         let output = outputs.get("last_hidden_state")
             .or_else(|| outputs.get("sentence_embedding"))
             .or_else(|| outputs.iter().next().map(|(_, v)| v))

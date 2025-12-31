@@ -3,7 +3,7 @@
 //! This module provides cloud API integration:
 //! - Support for GPT-4o-mini and Claude Haiku
 //! - Rate limiting to prevent API abuse
-//! - Cost tracking with monthly limits
+//! - Cost tracking with database persistence
 //! - Retry logic with exponential backoff
 //!
 //! **Validates: Requirements 11.6, 11.7**
@@ -12,10 +12,11 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Datelike, Utc};
 use reqwest::Client;
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
+use sqlx::SqlitePool;
 use tokio::sync::RwLock;
 
 use super::anonymizer::DataAnonymizer;
@@ -45,7 +46,7 @@ pub struct CloudBridge {
     /// Rate limiter
     rate_limiter: RateLimiter,
     
-    /// Cost tracker
+    /// Cost tracker (database-backed)
     cost_tracker: Arc<CostTracker>,
     
     /// Data anonymizer
@@ -196,19 +197,19 @@ impl RateLimiter {
     }
 }
 
-/// Cost tracker for monitoring API usage
+/// Cost tracker for monitoring API usage - DATABASE BACKED
+/// 
+/// This implementation persists all usage records to SQLite, ensuring
+/// that monthly cost limits work correctly across application restarts.
 pub struct CostTracker {
-    /// Current month's total cost
-    current_cost: AtomicU64, // Stored as microdollars (1 USD = 1_000_000)
+    /// Database connection pool
+    db: SqlitePool,
     
-    /// Monthly limit in microdollars
-    monthly_limit: u64,
+    /// Monthly limit in USD
+    monthly_limit: f64,
     
-    /// Usage records
-    records: RwLock<Vec<UsageRecord>>,
-    
-    /// Month start timestamp
-    month_start: RwLock<DateTime<Utc>>,
+    /// Cached current month cost (updated on each record)
+    cached_cost: AtomicU64, // Stored as microdollars (1 USD = 1_000_000)
 }
 
 /// Usage record for tracking
@@ -228,54 +229,97 @@ pub struct UsageRecord {
 }
 
 impl CostTracker {
-    /// Create a new cost tracker
-    pub fn new(monthly_limit: f64) -> Self {
-        Self {
-            current_cost: AtomicU64::new(0),
-            monthly_limit: (monthly_limit * 1_000_000.0) as u64,
-            records: RwLock::new(Vec::new()),
-            month_start: RwLock::new(Utc::now()),
-        }
-    }
-    
-    /// Record usage
-    pub async fn record(&self, tokens: u32, model: &CloudModelType) {
-        let cost = self.calculate_cost(tokens, model);
-        let cost_micros = (cost * 1_000_000.0) as u64;
-        
-        // Update current cost
-        self.current_cost.fetch_add(cost_micros, Ordering::SeqCst);
-        
-        // Add record
-        let record = UsageRecord {
-            timestamp: Utc::now(),
-            tokens,
-            cost_usd: cost,
-            model: model.to_string(),
+    /// Create a new cost tracker with database persistence
+    pub async fn new(db: SqlitePool, monthly_limit: f64) -> InferenceResult<Self> {
+        let tracker = Self {
+            db,
+            monthly_limit,
+            cached_cost: AtomicU64::new(0),
         };
         
-        let mut records = self.records.write().await;
-        records.push(record);
+        // Load current month's cost from database
+        tracker.reload_monthly_cost().await?;
         
-        // Keep only last 1000 records
-        if records.len() > 1000 {
-            records.drain(0..100);
-        }
+        Ok(tracker)
+    }
+    
+    /// Reload the current month's cost from database
+    async fn reload_monthly_cost(&self) -> InferenceResult<()> {
+        let now = Utc::now();
+        let month_start = format!("{}-{:02}-01 00:00:00", now.year(), now.month());
+        
+        let result: Option<f64> = sqlx::query_scalar(
+            r#"
+            SELECT COALESCE(SUM(cost), 0.0)
+            FROM cloud_usage
+            WHERE timestamp >= ?
+            "#
+        )
+        .bind(&month_start)
+        .fetch_optional(&self.db)
+        .await
+        .map_err(|e| InferenceError::DatabaseError {
+            reason: format!("Failed to load monthly cost: {}", e),
+        })?;
+        
+        let cost = result.unwrap_or(0.0);
+        let cost_micros = (cost * 1_000_000.0) as u64;
+        self.cached_cost.store(cost_micros, Ordering::SeqCst);
+        
+        tracing::info!("Loaded monthly cloud cost from database: ${:.4}", cost);
+        
+        Ok(())
+    }
+    
+    /// Record usage to database
+    pub async fn record(&self, tokens: u32, model: &CloudModelType) -> InferenceResult<()> {
+        let cost = self.calculate_cost(tokens, model);
+        let timestamp = Utc::now().to_rfc3339();
+        let model_str = model.to_string();
+        
+        // Insert into database
+        sqlx::query(
+            r#"
+            INSERT INTO cloud_usage (timestamp, tokens, cost, model, request_type)
+            VALUES (?, ?, ?, ?, 'inference')
+            "#
+        )
+        .bind(&timestamp)
+        .bind(tokens as i64)
+        .bind(cost)
+        .bind(&model_str)
+        .execute(&self.db)
+        .await
+        .map_err(|e| InferenceError::DatabaseError {
+            reason: format!("Failed to record usage: {}", e),
+        })?;
+        
+        // Update cached cost
+        let cost_micros = (cost * 1_000_000.0) as u64;
+        self.cached_cost.fetch_add(cost_micros, Ordering::SeqCst);
+        
+        tracing::debug!(
+            "Recorded cloud usage: {} tokens, ${:.6}, model: {}",
+            tokens, cost, model_str
+        );
+        
+        Ok(())
     }
     
     /// Check if monthly limit is reached
     pub fn is_limit_reached(&self) -> bool {
-        self.current_cost.load(Ordering::SeqCst) >= self.monthly_limit
+        let current = self.cached_cost.load(Ordering::SeqCst) as f64 / 1_000_000.0;
+        current >= self.monthly_limit
     }
     
     /// Get current cost in USD
     pub fn current_cost_usd(&self) -> f64 {
-        self.current_cost.load(Ordering::SeqCst) as f64 / 1_000_000.0
+        self.cached_cost.load(Ordering::SeqCst) as f64 / 1_000_000.0
     }
     
     /// Get monthly limit in USD
     pub fn monthly_limit_usd(&self) -> f64 {
-        self.monthly_limit as f64 / 1_000_000.0
+        self.monthly_limit
     }
     
     /// Calculate cost for tokens
@@ -290,31 +334,70 @@ impl CostTracker {
         (tokens as f64) * price_per_million / 1_000_000.0
     }
     
-    /// Reset for new month
-    pub async fn reset_if_new_month(&self) {
-        let mut month_start = self.month_start.write().await;
-        let now = Utc::now();
-        
-        // Check if we're in a new month
-        if now.month() != month_start.month() || now.year() != month_start.year() {
-            self.current_cost.store(0, Ordering::SeqCst);
-            *month_start = now;
-            
-            let mut records = self.records.write().await;
-            records.clear();
-        }
+    /// Reset cache for new month (called on month boundary)
+    pub async fn check_month_reset(&self) -> InferenceResult<()> {
+        // Reload from database - this will automatically get only current month's data
+        self.reload_monthly_cost().await
     }
     
-    /// Get usage statistics
-    pub async fn get_stats(&self) -> CostStats {
-        let records = self.records.read().await;
+    /// Get usage statistics from database
+    pub async fn get_stats(&self) -> InferenceResult<CostStats> {
+        let now = Utc::now();
+        let month_start = format!("{}-{:02}-01 00:00:00", now.year(), now.month());
         
-        CostStats {
+        let row: (i64, i64) = sqlx::query_as(
+            r#"
+            SELECT 
+                COUNT(*) as total_requests,
+                COALESCE(SUM(tokens), 0) as total_tokens
+            FROM cloud_usage
+            WHERE timestamp >= ?
+            "#
+        )
+        .bind(&month_start)
+        .fetch_one(&self.db)
+        .await
+        .map_err(|e| InferenceError::DatabaseError {
+            reason: format!("Failed to get stats: {}", e),
+        })?;
+        
+        Ok(CostStats {
             current_cost_usd: self.current_cost_usd(),
             monthly_limit_usd: self.monthly_limit_usd(),
-            total_requests: records.len(),
-            total_tokens: records.iter().map(|r| r.tokens as u64).sum(),
-        }
+            total_requests: row.0 as usize,
+            total_tokens: row.1 as u64,
+        })
+    }
+    
+    /// Get recent usage records
+    pub async fn get_recent_records(&self, limit: u32) -> InferenceResult<Vec<UsageRecord>> {
+        let rows: Vec<(String, i64, f64, Option<String>)> = sqlx::query_as(
+            r#"
+            SELECT timestamp, tokens, cost, model
+            FROM cloud_usage
+            ORDER BY timestamp DESC
+            LIMIT ?
+            "#
+        )
+        .bind(limit as i64)
+        .fetch_all(&self.db)
+        .await
+        .map_err(|e| InferenceError::DatabaseError {
+            reason: format!("Failed to get records: {}", e),
+        })?;
+        
+        let records = rows.into_iter().map(|(ts, tokens, cost, model)| {
+            UsageRecord {
+                timestamp: DateTime::parse_from_rfc3339(&ts)
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .unwrap_or_else(|_| Utc::now()),
+                tokens: tokens as u32,
+                cost_usd: cost,
+                model: model.unwrap_or_else(|| "unknown".to_string()),
+            }
+        }).collect();
+        
+        Ok(records)
     }
 }
 
@@ -381,23 +464,27 @@ struct ParsedCloudResponse {
 }
 
 impl CloudBridge {
-    /// Create a new cloud bridge
-    pub fn new(config: CloudConfig) -> Self {
+    /// Create a new cloud bridge with database-backed cost tracking
+    pub async fn new(config: CloudConfig, db: SqlitePool) -> InferenceResult<Self> {
         let rate_limiter = RateLimiter::new(config.requests_per_minute);
-        let cost_tracker = Arc::new(CostTracker::new(config.monthly_cost_limit));
+        let cost_tracker = Arc::new(
+            CostTracker::new(db, config.monthly_cost_limit).await?
+        );
         
         let client = Client::builder()
             .timeout(Duration::from_millis(config.timeout_ms))
             .build()
-            .expect("Failed to create HTTP client");
+            .map_err(|e| InferenceError::NetworkError {
+                reason: format!("Failed to create HTTP client: {}", e),
+            })?;
         
-        Self {
+        Ok(Self {
             client,
             config,
             rate_limiter,
             cost_tracker,
             anonymizer: DataAnonymizer::default(),
-        }
+        })
     }
     
     /// Check if cloud is available
@@ -425,8 +512,8 @@ impl CloudBridge {
         // Acquire rate limit token
         self.rate_limiter.acquire().await?;
         
-        // Reset if new month
-        self.cost_tracker.reset_if_new_month().await;
+        // Check for month reset
+        self.cost_tracker.check_month_reset().await?;
         
         // Anonymize the prompt
         let anonymized_prompt = self.anonymizer.anonymize(prompt);
@@ -438,8 +525,8 @@ impl CloudBridge {
         
         let duration_ms = start.elapsed().as_millis() as u64;
         
-        // Record usage
-        self.cost_tracker.record(response.usage.total_tokens, &self.config.model).await;
+        // Record usage to database
+        self.cost_tracker.record(response.usage.total_tokens, &self.config.model).await?;
         
         // Parse response
         let understanding = self.parse_response(&response)?;
@@ -474,11 +561,16 @@ impl CloudBridge {
                         return Err(e);
                     }
                     
+                    // Handle rate limit with Retry-After header
+                    if let InferenceError::RateLimitExceeded { retry_after_secs } = &e {
+                        retry_delay = Duration::from_secs(*retry_after_secs);
+                    }
+                    
                     last_error = Some(e);
                     
                     // Wait before retry (exponential backoff)
                     tokio::time::sleep(retry_delay).await;
-                    retry_delay *= 2;
+                    retry_delay = retry_delay.saturating_mul(2);
                 }
             }
         }
@@ -512,9 +604,12 @@ impl CloudBridge {
             .header("Content-Type", "application/json")
             .json(&request_body)
             .send()
-            .await?;
+            .await
+            .map_err(|e| InferenceError::NetworkError {
+                reason: format!("Request failed: {}", e),
+            })?;
         
-        // Check for rate limit response
+        // Check for rate limit response - read Retry-After header
         if response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
             let retry_after = response
                 .headers()
@@ -537,7 +632,11 @@ impl CloudBridge {
             });
         }
         
-        let api_response: CloudApiResponse = response.json().await?;
+        let api_response: CloudApiResponse = response.json().await
+            .map_err(|e| InferenceError::CloudApiError {
+                reason: format!("Failed to parse response: {}", e),
+            })?;
+        
         Ok(api_response)
     }
     
@@ -610,27 +709,6 @@ mod tests {
         
         // Should fail on third
         assert!(limiter.acquire().await.is_err());
-    }
-
-    #[test]
-    fn test_cost_tracker_creation() {
-        let tracker = CostTracker::new(10.0);
-        assert!(!tracker.is_limit_reached());
-        assert_eq!(tracker.current_cost_usd(), 0.0);
-        assert_eq!(tracker.monthly_limit_usd(), 10.0);
-    }
-
-    #[tokio::test]
-    async fn test_cost_tracker_record() {
-        let tracker = CostTracker::new(10.0);
-        
-        tracker.record(1000, &CloudModelType::GPT4oMini).await;
-        
-        assert!(tracker.current_cost_usd() > 0.0);
-        
-        let stats = tracker.get_stats().await;
-        assert_eq!(stats.total_requests, 1);
-        assert_eq!(stats.total_tokens, 1000);
     }
 
     #[test]

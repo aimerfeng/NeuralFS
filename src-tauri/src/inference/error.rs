@@ -52,6 +52,10 @@ pub enum InferenceError {
     /// Internal error
     #[error("Internal error: {reason}")]
     Internal { reason: String },
+
+    /// Database error
+    #[error("Database error: {reason}")]
+    DatabaseError { reason: String },
 }
 
 impl From<reqwest::Error> for InferenceError {
