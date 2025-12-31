@@ -488,64 +488,64 @@
     - **Property 7: Search Latency Bound (Fast Mode)**
     - **Validates: Requirements 4.8**
 
-- [ ] 23. 标签管理系统
-  - [ ] 23.1 实现标签管理器
+- [x] 23. 标签管理系统
+  - [x] 23.1 实现标签管理器
     - 创建 `src-tauri/src/tag/mod.rs`
     - 实现 `TagManager`
     - 实现自动标签生成
     - _Requirements: 5.1_
 
-  - [ ] 23.2 实现标签层级
+  - [x] 23.2 实现标签层级
     - 实现父子标签关系
     - 实现多维度导航
     - _Requirements: 5.2, 5.6_
 
-  - [ ] 23.3 实现标签修正 API
+  - [x] 23.3 实现标签修正 API
     - 实现 `TagCommand` 处理
     - 实现确认/拒绝/手动添加
     - _Requirements: Human-in-the-Loop_
 
-  - [ ] 23.4 实现敏感标签检测
+  - [x] 23.4 实现敏感标签检测
     - 实现 `SensitiveTagDetector`
     - 实现需确认标签标记
     - _Requirements: UI/UX Design_
 
-  - [ ] 23.5 编写属性测试: 标签系统
+  - [x] 23.5 编写属性测试: 标签系统
     - **Property 8: Tag Assignment Completeness**
     - **Property 9: Tag Hierarchy Depth Bound**
     - **Property 24: Sensitive Tag Confirmation Requirement**
     - **Validates: Requirements 5**
 
-- [ ] 24. 逻辑链条引擎
-  - [ ] 24.1 实现关联引擎
+- [x] 24. 逻辑链条引擎
+  - [x] 24.1 实现关联引擎
     - 创建 `src-tauri/src/relation/mod.rs`
     - 实现 `LogicChainEngine`
     - 实现内容相似度关联
     - _Requirements: 6.1_
 
-  - [ ] 24.2 实现会话追踪
+  - [x] 24.2 实现会话追踪
     - 实现 `SessionTracker`
     - 记录同会话打开的文件
     - _Requirements: 6.2_
 
-  - [ ] 24.3 实现关联修正 API
+  - [x] 24.3 实现关联修正 API
     - 实现 `RelationCommand` 处理
     - 实现确认/拒绝/屏蔽
     - _Requirements: Human-in-the-Loop_
 
-  - [ ] 24.4 实现屏蔽规则
+  - [x] 24.4 实现屏蔽规则
     - 实现 `RelationBlockRule` 存储
     - 实现屏蔽规则应用
     - _Requirements: Human-in-the-Loop_
 
-  - [ ] 24.5 编写属性测试: 关联系统
+  - [x] 24.5 编写属性测试: 关联系统
     - **Property 10: Relation Symmetry**
     - **Property 14: User Feedback State Machine**
     - **Property 15: Block Rule Enforcement**
     - **Property 16: Rejection Learning Effect**
     - **Validates: Requirements 6, Human-in-the-Loop**
 
-- [ ] 25. Checkpoint - 搜索与标签验证
+- [x] 25. Checkpoint - 搜索与标签验证
   - 验证混合搜索
   - 验证标签自动生成
   - 验证关联推荐

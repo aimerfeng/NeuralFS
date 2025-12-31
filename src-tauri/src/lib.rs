@@ -26,6 +26,8 @@ pub mod parser;
 pub mod indexer;
 pub mod embeddings;
 pub mod inference;
+pub mod tag;
+pub mod relation;
 
 // Re-export commonly used items
 pub use core::error::{NeuralFSError, Result};
@@ -43,4 +45,15 @@ pub use inference::{
     HybridInferenceEngine, LocalInferenceEngine, CloudBridge, CloudConfig, ResultMerger,
     MergerConfig, DataAnonymizer, InferenceRequest, InferenceResponse, InferenceContext,
     InferenceOptions, InferenceError, LocalModelType, CloudModelType,
+};
+pub use tag::{
+    TagManager, TagManagerConfig, TagSuggestion, AutoTagResult, TagHierarchy, TagNode, TagPath,
+    TagCommand, TagCorrectionService, TagCorrectionResult, SensitiveTagDetector, SensitivePattern,
+    SensitivityLevel, TagError,
+};
+pub use relation::{
+    LogicChainEngine, LogicChainConfig, RelatedFile, SimilarityResult,
+    SessionTracker, SessionConfig, SessionInfo, SessionEvent,
+    RelationCommand, RelationCorrectionService, RelationCorrectionResult, BlockScope,
+    BlockRuleStore, BlockRuleFilter, RelationError,
 };

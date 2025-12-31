@@ -144,9 +144,25 @@ src-tauri/
 │   │   ├── mod.rs
 │   │   ├── tokenizer.rs # 多语言分词
 │   │   ├── text_index.rs # Tantivy 索引
-│   │   ├── intent.rs    # 意图解析器 ⭐
-│   │   ├── hybrid.rs    # 混合搜索引擎 ⭐ (新增)
+│   │   ├── intent.rs    # 意图解析器
+│   │   ├── hybrid.rs    # 混合搜索引擎 ⭐
 │   │   └── tests.rs     # 属性测试 (Property 3, 7, 19, 22, 31)
+│   ├── tag/            # 标签管理系统 ⭐ (Phase 6 新增)
+│   │   ├── mod.rs       # 模块导出
+│   │   ├── manager.rs   # TagManager - 标签 CRUD 和自动标签
+│   │   ├── hierarchy.rs # TagHierarchy - 标签层级管理
+│   │   ├── correction.rs # TagCorrectionService - 人工修正 API
+│   │   ├── sensitive.rs # SensitiveTagDetector - 敏感标签检测
+│   │   ├── error.rs     # 错误类型
+│   │   └── tests.rs     # 属性测试 (Property 8, 9, 24)
+│   ├── relation/       # 逻辑链条引擎 ⭐ (Phase 6 新增)
+│   │   ├── mod.rs       # 模块导出
+│   │   ├── engine.rs    # LogicChainEngine - 关联管理
+│   │   ├── session.rs   # SessionTracker - 会话追踪
+│   │   ├── correction.rs # RelationCorrectionService - 人工修正 API
+│   │   ├── block_rules.rs # BlockRuleStore - 屏蔽规则
+│   │   ├── error.rs     # 错误类型
+│   │   └── tests.rs     # 属性测试 (Property 10, 14, 15, 16)
 │   ├── embeddings/     # 嵌入引擎
 │   │   ├── mod.rs
 │   │   ├── model_manager.rs
@@ -195,7 +211,8 @@ src-tauri/
 │   └── watchdog/       # 进程监控
 ├── migrations/         # SQL 迁移文件
 │   ├── 001_initial_schema.sql
-│   └── 002_add_file_id.sql
+│   ├── 002_add_file_id.sql
+│   └── 003_add_session_columns.sql  # ⭐ Phase 6 新增
 └── Cargo.toml
 ```
 
@@ -260,7 +277,7 @@ src-tauri/
 
 ---
 
-### Phase 6: 搜索与标签 (Search & Tags) - 进行中
+### Phase 6: 搜索与标签 (Search & Tags) ✅
 
 #### 22. 混合搜索引擎 ✅
 
@@ -335,19 +352,232 @@ src-tauri/
 
 ---
 
-## 下一步计划 (Phase 6 继续)
+#### 23. 标签管理系统 ✅
 
-- [ ] 23. 标签管理系统 (TagManager)
-- [ ] 24. 逻辑链条引擎 (LogicChainEngine)
-- [ ] 25. Checkpoint - 搜索与标签验证
+##### 23.1 实现标签管理器
+- **文件**: `src-tauri/src/tag/manager.rs`
+- **实现内容**:
+  - `TagManager` 结构体 - 标签 CRUD 操作
+  - `TagManagerConfig` - 配置 (最小置信度、最大自动标签数)
+  - `create_tag()` - 创建标签 (名称验证、重复检查)
+  - `get_tag()` / `get_tag_by_name()` - 查询标签
+  - `update_tag()` / `delete_tag()` - 更新/删除标签
+  - `add_tag_to_file()` / `remove_tag_from_file()` - 文件-标签关联
+  - `get_file_tags()` / `get_files_by_tag()` - 关联查询
+  - `auto_tag_file()` - 自动标签生成
+    - 基于文件扩展名分配文件类型标签
+    - 基于内容关键词分析分配分类标签
+    - 敏感标签检测与确认要求
+  - `suggest_tags()` - 标签建议 (不自动应用)
+
+##### 23.2 实现标签层级
+- **文件**: `src-tauri/src/tag/hierarchy.rs`
+- **实现内容**:
+  - `TagHierarchy` 结构体 - 标签层级管理
+  - `get_path()` - 获取标签路径 (从根到当前)
+  - `get_depth()` - 获取标签深度
+  - `get_children()` - 获取子标签
+  - `get_ancestors()` - 获取祖先标签
+  - `set_parent()` - 设置父标签 (深度验证)
+  - `get_stats()` - 层级统计信息
+  - **深度限制**: 最大 3 层 (0, 1, 2)
+
+##### 23.3 实现标签修正 API
+- **文件**: `src-tauri/src/tag/correction.rs`
+- **实现内容**:
+  - `TagCommand` 枚举 - 标签修正命令
+    - `ConfirmTag` - 确认 AI 生成的标签
+    - `RejectTag` - 拒绝标签 (可选屏蔽类似标签)
+    - `AddTag` / `RemoveTag` - 手动添加/移除标签
+    - `BatchTag` - 批量标签操作
+    - `CreateTag` - 创建新标签
+    - `MergeTags` - 合并多个标签
+    - `RenameTag` / `DeleteTag` - 重命名/删除标签
+    - `SetTagParent` - 设置标签父级
+  - `TagCorrectionService` - 执行修正命令
+  - `TagCorrectionResult` - 操作结果
+  - `get_tag_preferences()` - 获取用户标签偏好
+
+##### 23.4 实现敏感标签检测
+- **文件**: `src-tauri/src/tag/sensitive.rs`
+- **实现内容**:
+  - `SensitiveTagDetector` 结构体
+  - `SensitivityLevel` 枚举: `None`, `Low`, `Medium`, `High`
+  - `check_sensitivity()` - 检查标签敏感度
+  - `analyze()` - 详细敏感度分析
+  - **敏感关键词类别**:
+    - 个人信息: personal, private, confidential
+    - 财务信息: bank, account, tax, salary
+    - 医疗信息: medical, health, diagnosis
+    - 法律信息: legal, contract, nda
+
+##### 23.5 编写属性测试: 标签系统
+- **文件**: `src-tauri/src/tag/tests.rs`
+- **Property 8: Tag Assignment Completeness**
+  - 验证每个索引文件至少分配一个标签
+  - **Validates: Requirements 5.1**
+- **Property 9: Tag Hierarchy Depth Bound**
+  - 验证标签层级深度不超过 3 层
+  - **Validates: Requirements 5.7**
+- **Property 24: Sensitive Tag Confirmation Requirement**
+  - 验证敏感标签需要用户确认
+  - **Validates: Requirements 5.5, 13.4, UI/UX Design**
+
+---
+
+#### 24. 逻辑链条引擎 ✅
+
+##### 24.1 实现关联引擎
+- **文件**: `src-tauri/src/relation/engine.rs`
+- **实现内容**:
+  - `LogicChainEngine` 结构体 - 文件关联管理
+  - `LogicChainConfig` - 配置
+    - `min_similarity_threshold`: 最小相似度阈值 (默认 0.5)
+    - `max_related_files`: 最大关联文件数 (默认 10)
+    - `content_similarity_weight`: 内容相似度权重 (默认 0.6)
+    - `session_weight`: 会话权重 (默认 0.4)
+    - `time_decay_factor`: 时间衰减因子 (默认 0.99)
+  - `create_relation()` - 创建关联 (验证、屏蔽规则检查)
+  - `get_relation()` / `get_relation_between()` - 查询关联
+  - `get_relations_for_file()` - 获取文件的所有关联
+  - `update_relation()` / `delete_relation()` - 更新/删除关联
+  - `find_similar_files()` - 基于向量相似度查找相似文件
+  - `generate_content_relations()` - 自动生成内容关联
+  - `calculate_combined_score()` - 计算综合分数 (含时间衰减)
+
+##### 24.2 实现会话追踪
+- **文件**: `src-tauri/src/relation/session.rs`
+- **实现内容**:
+  - `SessionTracker` 结构体 - 会话追踪
+  - `SessionConfig` - 配置 (会话超时、最小文件数)
+  - `start_session()` / `end_session()` - 会话生命周期
+  - `record_file_access()` - 记录文件访问
+  - `get_session_files()` - 获取会话中的文件
+  - `generate_session_relations()` - 生成会话关联
+  - **数据库迁移**: `src-tauri/migrations/003_add_session_columns.sql`
+
+##### 24.3 实现关联修正 API
+- **文件**: `src-tauri/src/relation/correction.rs`
+- **实现内容**:
+  - `RelationCommand` 枚举 - 关联修正命令
+    - `Confirm` - 确认关联有效
+    - `Reject` - 拒绝关联 (一键解除)
+    - `Adjust` - 调整关联强度
+    - `Create` - 手动创建关联
+    - `BatchReject` - 批量拒绝
+  - `BlockScope` 枚举 - 屏蔽范围
+    - `ThisPairOnly` - 仅屏蔽当前文件对
+    - `SourceToTargetTag` - 屏蔽源文件与目标标签
+    - `TagToTag` - 屏蔽标签对
+  - `RelationCorrectionService` - 执行修正命令
+  - `validate_feedback_transition()` - 状态机验证
+
+##### 24.4 实现屏蔽规则
+- **文件**: `src-tauri/src/relation/block_rules.rs`
+- **实现内容**:
+  - `BlockRuleStore` 结构体 - 屏蔽规则存储
+  - `create_file_pair_rule()` - 创建文件对屏蔽规则
+  - `create_file_to_tag_rule()` - 创建文件-标签屏蔽规则
+  - `create_tag_pair_rule()` - 创建标签对屏蔽规则
+  - `create_file_all_ai_rule()` - 屏蔽文件的所有 AI 关联
+  - `is_blocked()` - 检查关联是否被屏蔽
+  - `get_rules_for_file()` - 获取文件的屏蔽规则
+  - `delete_rule()` / `deactivate_rule()` - 删除/停用规则
+
+##### 24.5 编写属性测试: 关联系统
+- **文件**: `src-tauri/src/relation/tests.rs`
+- **Property 10: Relation Symmetry**
+  - 验证关联的对称性 (A→B 可从 A 和 B 两侧查询)
+  - **Validates: Requirements 6.1**
+- **Property 14: User Feedback State Machine**
+  - 验证用户反馈状态转换的有效性
+  - 有效转换: None→Any, Confirmed→Rejected/Adjusted, Rejected→Confirmed
+  - **Validates: Human-in-the-Loop**
+- **Property 15: Block Rule Enforcement**
+  - 验证屏蔽规则正确阻止关联
+  - 测试 FilePair, FileAllAI, RelationType 规则
+  - **Validates: Human-in-the-Loop**
+- **Property 16: Rejection Learning Effect**
+  - 验证拒绝关联时 block_similar=true 会创建屏蔽规则
+  - 验证被拒绝关联的有效强度为 0
+  - **Validates: Human-in-the-Loop**
+
+---
+
+#### 25. Checkpoint - 搜索与标签验证 ✅
+
+##### 验证内容
+1. **混合搜索** ✅
+   - 查询分类 (ExactKeyword/NaturalLanguage/Mixed)
+   - 分数归一化与加权合并
+   - 搜索过滤 (文件类型、标签、时间范围)
+   - 延迟测试 (核心操作 < 50ms)
+
+2. **标签自动生成** ✅
+   - 基于文件扩展名的类型标签
+   - 基于内容关键词的分类标签
+   - 敏感标签检测与确认要求
+   - 标签层级管理 (最大 3 层)
+
+3. **关联推荐** ✅
+   - 内容相似度关联
+   - 会话追踪关联
+   - 时间衰减计算
+   - 屏蔽规则执行
+
+4. **人工修正功能** ✅
+   - 标签确认/拒绝/批量操作
+   - 关联确认/拒绝/强度调整
+   - 状态机验证
+   - 屏蔽规则创建
+
+##### 属性测试覆盖
+| Property | 描述 | 文件 |
+|----------|------|------|
+| Property 3 | Intent Classification Validity | `search/tests.rs` |
+| Property 7 | Search Latency Bound | `search/tests.rs` |
+| Property 8 | Tag Assignment Completeness | `tag/tests.rs` |
+| Property 9 | Tag Hierarchy Depth Bound | `tag/tests.rs` |
+| Property 10 | Relation Symmetry | `relation/tests.rs` |
+| Property 14 | User Feedback State Machine | `relation/tests.rs` |
+| Property 15 | Block Rule Enforcement | `relation/tests.rs` |
+| Property 16 | Rejection Learning Effect | `relation/tests.rs` |
+| Property 19 | Search Filter Correctness | `search/tests.rs` |
+| Property 22 | Hybrid Search Score Normalization | `search/tests.rs` |
+| Property 24 | Sensitive Tag Confirmation | `tag/tests.rs` |
+| Property 31 | Chinese Tokenization Quality | `search/tests.rs` |
+
+---
+
+## 下一步计划 (Phase 7: 视觉预览)
+
+- [ ] 26. 资源流服务 (SecureAssetStreamServer)
+- [ ] 27. 文件预览生成
+- [ ] 28. 高亮导航器
+- [ ] 29. Checkpoint - 视觉预览验证
 
 ## 运行测试
 
 ```bash
 cd src-tauri
-cargo test --lib db::      # 数据库测试
-cargo test --lib vector::  # 向量存储测试
-cargo test --lib search::  # 搜索测试
+
+# 数据库测试
+cargo test --lib db::
+
+# 向量存储测试
+cargo test --lib vector::
+
+# 搜索测试 (包含 Property 3, 7, 19, 22, 31)
+cargo test --lib search::
+
+# 标签系统测试 (包含 Property 8, 9, 24)
+cargo test --lib tag::
+
+# 关联系统测试 (包含 Property 10, 14, 15, 16)
+cargo test --lib relation::
+
+# 运行所有测试
+cargo test --lib
 ```
 
 ## 注意事项
@@ -355,3 +585,4 @@ cargo test --lib search::  # 搜索测试
 1. **Rust 工具链**: 需要安装 Rust (https://rustup.rs/)
 2. **WAL 模式**: 通过 Cargo feature `wal` 启用
 3. **跨平台**: Windows 特定功能在非 Windows 平台使用 stub 实现
+4. **属性测试**: 使用 proptest 库，每个属性测试运行 100 次
