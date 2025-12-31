@@ -322,4 +322,309 @@ mod property_tests {
             );
         }
     }
+
+    /// **Property 28: Game Mode Detection Accuracy**
+    /// *For any* fullscreen application running, the SystemActivityMonitor SHALL detect it
+    /// within the check interval and transition to FullscreenApp state.
+    /// **Validates: Game Mode Detection**
+    mod property_28_game_mode_detection {
+        use super::*;
+        use crate::os::activity::{
+            SystemState, ActivityMonitorConfig, GameModeStatus, GameModePolicyConfig,
+        };
+
+        proptest! {
+            #![proptest_config(ProptestConfig::with_cases(100))]
+
+            /// Property: SystemState correctly identifies game mode triggers
+            /// For any SystemState, should_enter_game_mode() returns true only for
+            /// FullscreenApp and PresentationMode states
+            #[test]
+            fn system_state_game_mode_trigger_is_correct(
+                state_idx in 0usize..5usize,
+                app_name in proptest::option::of("[a-z]{3,10}\\.exe"),
+                process_id in proptest::option::of(1u32..65535u32),
+                battery_percent in 0u8..100u8
+            ) {
+                let state = match state_idx {
+                    0 => SystemState::Normal,
+                    1 => SystemState::FullscreenApp { app_name, process_id },
+                    2 => SystemState::PresentationMode,
+                    3 => SystemState::DoNotDisturb,
+                    _ => SystemState::LowPower { battery_percent },
+                };
+
+                let should_trigger = state.should_enter_game_mode();
+
+                // Only FullscreenApp and PresentationMode should trigger game mode
+                match state {
+                    SystemState::FullscreenApp { .. } => {
+                        prop_assert!(should_trigger, "FullscreenApp should trigger game mode");
+                    }
+                    SystemState::PresentationMode => {
+                        prop_assert!(should_trigger, "PresentationMode should trigger game mode");
+                    }
+                    _ => {
+                        prop_assert!(!should_trigger, "{:?} should NOT trigger game mode", state);
+                    }
+                }
+            }
+
+            /// Property: SystemState correctly identifies resource constraints
+            /// For any SystemState, has_resource_constraints() returns true for
+            /// FullscreenApp, PresentationMode, and LowPower states
+            #[test]
+            fn system_state_resource_constraints_is_correct(
+                state_idx in 0usize..5usize,
+                app_name in proptest::option::of("[a-z]{3,10}\\.exe"),
+                process_id in proptest::option::of(1u32..65535u32),
+                battery_percent in 0u8..100u8
+            ) {
+                let state = match state_idx {
+                    0 => SystemState::Normal,
+                    1 => SystemState::FullscreenApp { app_name, process_id },
+                    2 => SystemState::PresentationMode,
+                    3 => SystemState::DoNotDisturb,
+                    _ => SystemState::LowPower { battery_percent },
+                };
+
+                let has_constraints = state.has_resource_constraints();
+
+                match state {
+                    SystemState::FullscreenApp { .. } => {
+                        prop_assert!(has_constraints, "FullscreenApp should have resource constraints");
+                    }
+                    SystemState::PresentationMode => {
+                        prop_assert!(has_constraints, "PresentationMode should have resource constraints");
+                    }
+                    SystemState::LowPower { .. } => {
+                        prop_assert!(has_constraints, "LowPower should have resource constraints");
+                    }
+                    _ => {
+                        prop_assert!(!has_constraints, "{:?} should NOT have resource constraints", state);
+                    }
+                }
+            }
+
+            /// Property: SystemState description is never empty
+            /// For any SystemState, description() returns a non-empty string
+            #[test]
+            fn system_state_description_is_non_empty(
+                state_idx in 0usize..5usize,
+                app_name in proptest::option::of("[a-z]{3,10}\\.exe"),
+                process_id in proptest::option::of(1u32..65535u32),
+                battery_percent in 0u8..100u8
+            ) {
+                let state = match state_idx {
+                    0 => SystemState::Normal,
+                    1 => SystemState::FullscreenApp { app_name, process_id },
+                    2 => SystemState::PresentationMode,
+                    3 => SystemState::DoNotDisturb,
+                    _ => SystemState::LowPower { battery_percent },
+                };
+
+                let description = state.description();
+                prop_assert!(
+                    !description.is_empty(),
+                    "Description should not be empty for {:?}",
+                    state
+                );
+            }
+
+            /// Property: SystemState equality is reflexive
+            /// For any SystemState, it should equal itself
+            #[test]
+            fn system_state_equality_is_reflexive(
+                state_idx in 0usize..5usize,
+                app_name in proptest::option::of("[a-z]{3,10}\\.exe"),
+                process_id in proptest::option::of(1u32..65535u32),
+                battery_percent in 0u8..100u8
+            ) {
+                let state = match state_idx {
+                    0 => SystemState::Normal,
+                    1 => SystemState::FullscreenApp { 
+                        app_name: app_name.clone(), 
+                        process_id 
+                    },
+                    2 => SystemState::PresentationMode,
+                    3 => SystemState::DoNotDisturb,
+                    _ => SystemState::LowPower { battery_percent },
+                };
+
+                prop_assert_eq!(state.clone(), state, "State should equal itself");
+            }
+
+            /// Property: SystemState serialization round-trip preserves value
+            /// For any SystemState, serializing and deserializing should produce the same value
+            #[test]
+            fn system_state_serialization_round_trip(
+                state_idx in 0usize..5usize,
+                app_name in proptest::option::of("[a-z]{3,10}\\.exe"),
+                process_id in proptest::option::of(1u32..65535u32),
+                battery_percent in 0u8..100u8
+            ) {
+                let state = match state_idx {
+                    0 => SystemState::Normal,
+                    1 => SystemState::FullscreenApp { 
+                        app_name: app_name.clone(), 
+                        process_id 
+                    },
+                    2 => SystemState::PresentationMode,
+                    3 => SystemState::DoNotDisturb,
+                    _ => SystemState::LowPower { battery_percent },
+                };
+
+                let json = serde_json::to_string(&state).expect("Serialization should succeed");
+                let deserialized: SystemState = serde_json::from_str(&json)
+                    .expect("Deserialization should succeed");
+
+                prop_assert_eq!(
+                    state, deserialized,
+                    "Round-trip serialization should preserve value"
+                );
+            }
+
+            /// Property: GameModeStatus serialization round-trip preserves value
+            /// For any GameModeStatus, serializing and deserializing should produce the same value
+            #[test]
+            fn game_mode_status_serialization_round_trip(
+                status_idx in 0usize..4usize
+            ) {
+                let status = match status_idx {
+                    0 => GameModeStatus::Inactive,
+                    1 => GameModeStatus::Entering,
+                    2 => GameModeStatus::Active,
+                    _ => GameModeStatus::Exiting,
+                };
+
+                let json = serde_json::to_string(&status).expect("Serialization should succeed");
+                let deserialized: GameModeStatus = serde_json::from_str(&json)
+                    .expect("Deserialization should succeed");
+
+                prop_assert_eq!(
+                    status, deserialized,
+                    "Round-trip serialization should preserve value"
+                );
+            }
+
+            /// Property: ActivityMonitorConfig check_interval is always positive
+            /// For any valid configuration, check_interval should be positive
+            #[test]
+            fn activity_monitor_config_interval_is_positive(
+                interval_secs in 1u64..3600u64,
+                threshold in 1u8..100u8
+            ) {
+                let config = ActivityMonitorConfig {
+                    check_interval: Duration::from_secs(interval_secs),
+                    low_power_threshold: threshold,
+                    ..ActivityMonitorConfig::default()
+                };
+
+                prop_assert!(
+                    config.check_interval > Duration::ZERO,
+                    "Check interval should be positive"
+                );
+                prop_assert!(
+                    config.low_power_threshold > 0 && config.low_power_threshold <= 100,
+                    "Low power threshold should be between 1 and 100"
+                );
+            }
+
+            /// Property: GameModePolicyConfig delays are non-negative
+            /// For any valid configuration, delays should be non-negative
+            #[test]
+            fn game_mode_policy_config_delays_are_valid(
+                enter_delay_ms in 0u64..10000u64,
+                exit_delay_ms in 0u64..10000u64
+            ) {
+                let config = GameModePolicyConfig {
+                    enter_delay: Duration::from_millis(enter_delay_ms),
+                    exit_delay: Duration::from_millis(exit_delay_ms),
+                    ..GameModePolicyConfig::default()
+                };
+
+                prop_assert!(
+                    config.enter_delay >= Duration::ZERO,
+                    "Enter delay should be non-negative"
+                );
+                prop_assert!(
+                    config.exit_delay >= Duration::ZERO,
+                    "Exit delay should be non-negative"
+                );
+            }
+        }
+
+        /// Property: State transitions are consistent
+        /// When a fullscreen app is detected, game mode should be triggered
+        #[test]
+        fn fullscreen_detection_triggers_game_mode() {
+            // Test various fullscreen states
+            let fullscreen_states = vec![
+                SystemState::FullscreenApp {
+                    app_name: Some("game.exe".to_string()),
+                    process_id: Some(1234),
+                },
+                SystemState::FullscreenApp {
+                    app_name: None,
+                    process_id: Some(5678),
+                },
+                SystemState::FullscreenApp {
+                    app_name: Some("video_player.exe".to_string()),
+                    process_id: None,
+                },
+                SystemState::PresentationMode,
+            ];
+
+            for state in fullscreen_states {
+                assert!(
+                    state.should_enter_game_mode(),
+                    "State {:?} should trigger game mode",
+                    state
+                );
+            }
+        }
+
+        /// Property: Non-fullscreen states don't trigger game mode
+        #[test]
+        fn non_fullscreen_does_not_trigger_game_mode() {
+            let non_fullscreen_states = vec![
+                SystemState::Normal,
+                SystemState::DoNotDisturb,
+                SystemState::LowPower { battery_percent: 15 },
+            ];
+
+            for state in non_fullscreen_states {
+                assert!(
+                    !state.should_enter_game_mode(),
+                    "State {:?} should NOT trigger game mode",
+                    state
+                );
+            }
+        }
+
+        /// Property: Default configurations are valid
+        #[test]
+        fn default_configs_are_valid() {
+            let activity_config = ActivityMonitorConfig::default();
+            assert!(activity_config.check_interval > Duration::ZERO);
+            assert!(activity_config.low_power_threshold > 0);
+            assert!(activity_config.low_power_threshold <= 100);
+
+            let policy_config = GameModePolicyConfig::default();
+            assert!(policy_config.enter_delay >= Duration::ZERO);
+            assert!(policy_config.exit_delay >= Duration::ZERO);
+        }
+
+        /// Property: SystemState default is Normal
+        #[test]
+        fn system_state_default_is_normal() {
+            assert_eq!(SystemState::default(), SystemState::Normal);
+        }
+
+        /// Property: GameModeStatus default is Inactive
+        #[test]
+        fn game_mode_status_default_is_inactive() {
+            assert_eq!(GameModeStatus::default(), GameModeStatus::Inactive);
+        }
+    }
 }

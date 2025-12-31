@@ -8,6 +8,7 @@
 //! - Display change handling
 //! - Window handle lifecycle management
 //! - System thumbnail extraction
+//! - System activity monitoring (game mode detection)
 
 #[cfg(windows)]
 pub mod windows;
@@ -22,10 +23,16 @@ pub mod stub;
 pub use stub::StubDesktopManager as WindowsDesktopManager;
 
 pub mod thumbnail;
+pub mod activity;
 
 pub use thumbnail::{
     CacheStats, CachedThumbnailExtractor, ImageFormat, ThumbnailCache, ThumbnailCacheConfig,
     ThumbnailData, ThumbnailExtractor, ThumbnailExtractorTrait, ThumbnailSize,
+};
+
+pub use activity::{
+    SystemActivityMonitor, ActivityMonitorConfig, SystemState, StateChangeCallback,
+    GameModePolicy, GameModePolicyConfig, GameModeStatus, GameModeController,
 };
 
 #[cfg(test)]

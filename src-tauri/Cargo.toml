@@ -60,6 +60,7 @@ chrono = { version = "0.4", features = ["serde"] }
 
 # Hashing
 blake3 = "1.5"
+sha2 = "0.10"
 
 # Error handling
 thiserror = "1.0"
@@ -68,9 +69,29 @@ anyhow = "1.0"
 # Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-appender = "0.2"
+
+# Synchronization
+parking_lot = "0.12"
 
 # HTTP client for cloud API
 reqwest = { version = "0.11", features = ["json", "rustls-tls"], default-features = false }
+
+# HTTP server for asset streaming
+axum = "0.7"
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors"] }
+hyper = { version = "1.0", features = ["full"] }
+tokio-util = { version = "0.7", features = ["io"] }
+
+# Concurrent hash map for caching
+dashmap = "5.5"
+
+# Hex encoding for session tokens
+hex = "0.4"
+
+# Base64 encoding for image data
+base64 = "0.21"
 
 # Secret handling
 secrecy = { version = "0.8", features = ["serde"] }
@@ -78,6 +99,7 @@ secrecy = { version = "0.8", features = ["serde"] }
 # Configuration
 config = "0.13"
 directories = "5.0"
+dirs = "5.0"
 
 # Image processing
 image = "0.24"
@@ -106,6 +128,12 @@ glob = "0.3"
 
 # Regular expressions
 regex = "1.10"
+
+# Random number generation
+rand = "0.8"
+
+# Lazy static for global state
+lazy_static = "1.4"
 
 # Windows-specific dependencies
 [target.'cfg(windows)'.dependencies]

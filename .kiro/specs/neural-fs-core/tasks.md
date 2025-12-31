@@ -554,58 +554,58 @@
 
 ## Phase 7: 视觉预览 (Visual Preview)
 
-- [ ] 26. 资源流服务
-  - [ ] 26.1 实现安全资源服务器
+- [x] 26. 资源流服务
+  - [x] 26.1 实现安全资源服务器
     - 创建 `src-tauri/src/asset/mod.rs`
     - 实现 `SecureAssetStreamServer`
     - 实现会话令牌验证
     - _Requirements: Asset Streaming, Asset Server Security_
 
-  - [ ] 26.2 实现 CSRF 防护
+  - [x] 26.2 实现 CSRF 防护
     - 实现 Origin/Referer 检查
     - 实现安全响应头
     - _Requirements: Asset Server Security_
 
-  - [ ] 26.3 实现缩略图路由
+  - [x] 26.3 实现缩略图路由
     - 实现 `/thumbnail/:uuid` 路由
     - 实现缓存策略
     - _Requirements: 7.1_
 
-  - [ ] 26.4 编写属性测试: 资源服务安全
+  - [x] 26.4 编写属性测试: 资源服务安全
     - **Property 27: Asset Streaming Performance**
     - **Property 37: Asset Server Token Validation**
     - **Property 38: CSRF Protection**
     - **Validates: Asset Server Security**
 
-- [ ] 27. 文件预览生成
-  - [ ] 27.1 实现文本预览
+- [x] 27. 文件预览生成
+  - [x] 27.1 实现文本预览
     - 实现文本片段提取
     - 实现高亮标记
     - _Requirements: 7.1_
 
-  - [ ] 27.2 实现图片预览
+  - [x] 27.2 实现图片预览
     - 实现图片缩放
     - 实现区域标记
     - _Requirements: 7.4_
 
-  - [ ] 27.3 实现文档预览
+  - [x] 27.3 实现文档预览
     - 实现 PDF 页面渲染
     - 实现段落定位
     - _Requirements: 7.3_
 
-- [ ] 28. 高亮导航器
-  - [ ] 28.1 实现高亮导航
+- [x] 28. 高亮导航器
+  - [x] 28.1 实现高亮导航
     - 创建 `src-tauri/src/highlight/mod.rs`
     - 实现 `HighlightNavigator`
     - 实现文件打开和定位
     - _Requirements: 7.2, 7.3_
 
-  - [ ] 28.2 实现应用启动
+  - [x] 28.2 实现应用启动
     - 实现系统默认应用打开
     - 实现 "打开方式" 菜单
     - _Requirements: 14.1, 14.3_
 
-- [ ] 29. Checkpoint - 视觉预览验证
+- [x] 29. Checkpoint - 视觉预览验证
   - 验证资源服务安全
   - 验证缩略图生成
   - 验证文件预览
@@ -613,57 +613,57 @@
 
 ## Phase 8: 游戏模式与更新 (Game Mode & Updates)
 
-- [ ] 30. 游戏模式检测
-  - [ ] 30.1 实现系统活动监控
+- [x] 30. 游戏模式检测
+  - [x] 30.1 实现系统活动监控
     - 创建 `src-tauri/src/os/activity.rs`
     - 实现 `SystemActivityMonitor`
     - 实现全屏应用检测
     - _Requirements: Game Mode Detection_
 
-  - [ ] 30.2 实现游戏模式策略
+  - [x] 30.2 实现游戏模式策略
     - 实现 `GameModePolicy`
     - 实现 VRAM 释放
     - 实现索引暂停
     - _Requirements: Game Mode Detection_
 
-  - [ ] 30.3 编写属性测试: 游戏模式检测
+  - [x] 30.3 编写属性测试: 游戏模式检测
     - **Property 28: Game Mode Detection Accuracy**
     - **Validates: Game Mode Detection**
 
-- [ ] 31. 模型下载器
-  - [ ] 31.1 实现模型下载管理
+- [x] 31. 模型下载器
+  - [x] 31.1 实现模型下载管理
     - 创建 `src-tauri/src/update/model.rs`
     - 实现 `ModelDownloader`
     - 实现多源下载
     - _Requirements: Installer Specification_
 
-  - [ ] 31.2 实现断点续传
+  - [x] 31.2 实现断点续传
     - 实现 Range 请求
     - 实现校验和验证
     - _Requirements: Installer Specification_
 
-  - [ ] 31.3 编写属性测试: 模型下载完整性
+  - [x] 31.3 编写属性测试: 模型下载完整性
     - **Property 23: Model Download Integrity**
     - **Validates: Installer Specification**
 
-- [ ] 32. 自更新系统
-  - [ ] 32.1 实现更新检查
+- [x] 32. 自更新系统
+  - [x] 32.1 实现更新检查
     - 创建 `src-tauri/src/update/self_update.rs`
     - 实现 `SelfUpdater`
     - 实现版本检查
     - _Requirements: Self-Update Strategy_
 
-  - [ ] 32.2 实现 Swap & Restart
+  - [x] 32.2 实现 Swap & Restart
     - 实现更新脚本生成
     - 实现 Watchdog 协调
     - _Requirements: Self-Update Strategy_
 
-  - [ ] 32.3 编写属性测试: 更新原子性
+  - [x] 32.3 编写属性测试: 更新原子性
     - **Property 29: Update Atomicity**
     - **Property 30: Watchdog Recovery Guarantee**
     - **Validates: Self-Update Strategy**
 
-- [ ] 33. Checkpoint - 游戏模式与更新验证
+- [x] 33. Checkpoint - 游戏模式与更新验证
   - 验证游戏模式检测
   - 验证模型下载
   - 验证自更新流程
@@ -671,40 +671,40 @@
 
 ## Phase 9: Tauri IPC 与前端集成 (Frontend Integration)
 
-- [ ] 34. Tauri Commands
-  - [ ] 34.1 实现搜索命令
+- [x] 34. Tauri Commands
+  - [x] 34.1 实现搜索命令
     - 更新 `src-tauri/src/main.rs`
     - 实现 `search_files` 命令
     - 实现 `get_search_suggestions` 命令
     - _Requirements: 2.1, 2.2_
 
-  - [ ] 34.2 实现标签命令
+  - [x] 34.2 实现标签命令
     - 实现 `get_tags`, `add_tag`, `remove_tag`
     - 实现 `confirm_tag`, `reject_tag`
     - _Requirements: 5.1, Human-in-the-Loop_
 
-  - [ ] 34.3 实现关联命令
+  - [x] 34.3 实现关联命令
     - 实现 `get_relations`, `confirm_relation`, `reject_relation`
     - 实现 `block_relation`
     - _Requirements: 6.1, Human-in-the-Loop_
 
-  - [ ] 34.4 实现配置命令
+  - [x] 34.4 实现配置命令
     - 实现 `get_config`, `set_config`
     - 实现 `get_cloud_status`, `set_cloud_enabled`
     - _Requirements: 15.1, 15.2_
 
-  - [ ] 34.5 实现状态命令
+  - [x] 34.5 实现状态命令
     - 实现 `get_index_status`, `get_system_status`
     - 实现 `get_dead_letter_tasks`, `retry_dead_letter`
     - _Requirements: 16.1, Indexer Resilience_
 
-- [ ] 35. Custom Protocol 注册
-  - [ ] 35.1 注册 nfs:// 协议
+- [x] 35. Custom Protocol 注册
+  - [x] 35.1 注册 nfs:// 协议
     - 实现 `register_custom_protocol()`
     - 实现缩略图/预览路由
     - _Requirements: Asset Streaming_
 
-  - [ ] 35.2 实现安全握手流程 (前后端 Token 传递)
+  - [x] 35.2 实现安全握手流程 (前后端 Token 传递)
     - 后端：生成 Session Token 并存储在内存
     - 实现 `get_session_token` Tauri 命令
     - 前端：在 App 挂载时 (onMount) 调用 `invoke('get_session_token')`
@@ -712,72 +712,72 @@
     - 关键：确保握手在任何图片加载之前完成，否则首屏全是 403 Forbidden
     - _Requirements: Asset Server Security_
 
-- [ ] 36. 前端组件更新
-  - [ ] 36.1 更新 SearchBar 组件
+- [x] 36. 前端组件更新
+  - [x] 36.1 更新 SearchBar 组件
     - 实现意图提示
     - 实现澄清选项
     - _Requirements: 2.6, 10.1_
 
-  - [ ] 36.2 更新 FileGrid 组件
+  - [x] 36.2 更新 FileGrid 组件
     - 实现标签显示 (已确认/建议)
     - 实现关联展示
     - _Requirements: UI/UX Design_
 
-  - [ ] 36.3 实现 TagPanel 组件
+  - [x] 36.3 实现 TagPanel 组件
     - 实现标签层级导航
     - 实现多维度筛选
     - _Requirements: 5.2, 5.6_
 
-  - [ ] 36.4 实现 RelationGraph 组件
+  - [x] 36.4 实现 RelationGraph 组件
     - 实现关联可视化
     - 实现一键解除关联
     - _Requirements: 6.1, Human-in-the-Loop_
 
-- [ ] 37. Checkpoint - 前端集成验证
+- [x] 37. Checkpoint - 前端集成验证
   - 验证所有 Tauri 命令
   - 验证 Custom Protocol
   - 验证前端组件交互
 
 ## Phase 10: 首次启动与配置 (Onboarding & Config)
 
-- [ ] 38. 首次启动引导
-  - [ ] 38.1 实现引导向导
+- [x] 38. 首次启动引导
+  - [x] 38.1 实现引导向导
     - 创建引导页面组件
     - 实现目录选择
     - 实现云端配置
     - _Requirements: 17.1, 17.2, 17.3_
 
-  - [ ] 38.2 实现初始扫描
+  - [x] 38.2 实现初始扫描
     - 实现后台扫描
     - 实现进度显示
     - _Requirements: 17.4, 17.5_
 
-- [ ] 39. 配置管理
-  - [ ] 39.1 实现配置存储
+- [x] 39. 配置管理
+  - [x] 39.1 实现配置存储
     - 创建 `src-tauri/src/config/mod.rs`
     - 实现 JSON 配置文件
     - 实现配置迁移
     - _Requirements: 15.7_
 
-  - [ ] 39.2 实现设置界面
+  - [x] 39.2 实现设置界面
     - 实现监控目录配置
     - 实现云端 API 配置
     - 实现主题切换
     - _Requirements: 15.1, 15.2, 15.3_
 
-- [ ] 40. 日志与遥测
-  - [ ] 40.1 实现日志系统
+- [x] 40. 日志与遥测
+  - [x] 40.1 实现日志系统
     - 配置 tracing-subscriber
     - 实现日志轮转
     - 实现日志导出
     - _Requirements: 24.1, 24.2, 24.5_
 
-  - [ ] 40.2 实现遥测系统 (可选)
+  - [x] 40.2 实现遥测系统 (可选)
     - 实现匿名统计
     - 实现用户同意流程
     - _Requirements: 24.3, 24.4, 24.6_
 
-- [ ] 41. Final Checkpoint - 完整功能验证
+- [x] 41. Final Checkpoint - 完整功能验证
   - 运行所有属性测试
   - 验证完整用户流程
   - 验证错误恢复
